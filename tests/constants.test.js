@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { afterEach, describe, expect, it } from 'vitest';
 import { MS } from './setup.js';
 
 const {
@@ -9,10 +10,61 @@ const {
   withDefaults,
   normaliseDay,
   ignoredCount,
+  t,
   formatDuration,
   thresholdSeconds,
   quietMsForAction
 } = MS;
+
+describe('t', () => {
+  afterEach(() => {
+    delete globalThis.chrome;
+  });
+
+  it('falls back to the English source when there is no i18n API', () => {
+    expect(t('actionContinue', 'Continue')).toBe('Continue');
+  });
+
+  it('falls back when the catalogue has no entry for the key', () => {
+    globalThis.chrome = { i18n: { getMessage: () => '' } };
+    expect(t('missingKey', 'Continue')).toBe('Continue');
+  });
+
+  it('passes substitutions through to chrome.i18n', () => {
+    const calls = [];
+    globalThis.chrome = {
+      i18n: {
+        getMessage: (key, substitutions) => {
+          calls.push([key, substitutions]);
+          return `Back in ${substitutions[0]}.`;
+        }
+      }
+    };
+    expect(t('breakCountdown', 'Back in 30s.', ['30s'])).toBe('Back in 30s.');
+    expect(calls).toEqual([['breakCountdown', ['30s']]]);
+  });
+});
+
+describe('_locales/en/messages.json', () => {
+  const catalogue = JSON.parse(
+    readFileSync(new URL('../_locales/en/messages.json', import.meta.url))
+  );
+
+  it('gives every message a non-empty string', () => {
+    for (const [key, entry] of Object.entries(catalogue)) {
+      expect(typeof entry.message, key).toBe('string');
+      expect(entry.message.length, key).toBeGreaterThan(0);
+    }
+  });
+
+  it('declares a placeholder for every $NAME$ used in a message', () => {
+    for (const [key, entry] of Object.entries(catalogue)) {
+      const used = [...entry.message.matchAll(/\$([A-Z_]+)\$/g)].map((m) => m[1].toLowerCase());
+      const declared = Object.keys(entry.placeholders || {}).map((name) => name.toLowerCase());
+      expect(used.sort(), key).toEqual(declared.sort());
+    }
+  });
+});
 
 describe('dateKey', () => {
   it('formats the local date, zero padded', () => {

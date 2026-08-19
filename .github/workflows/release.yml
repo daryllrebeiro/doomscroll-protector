@@ -1,0 +1,35 @@
+name: Release
+
+# Tag a commit `v1.2.0` to cut a release. The tag must match the manifest
+# version, so the artifact attached to the release is always the code it claims.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - name: Check the tag matches the manifest version
+        run: |
+          manifest=$(node -p "require('./manifest.json').version")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$manifest" != "$tag" ]; then
+            echo "tag $tag does not match manifest version $manifest" >&2
+            exit 1
+          fi
+      - run: npm run package
+      - name: Publish the release with the store zip attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip --generate-notes

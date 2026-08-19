@@ -12,6 +12,7 @@
     siteIdForHost,
     withDefaults,
     formatDuration,
+    t,
     createDetector,
     sites: { adapterFor, isComposing }
   } = window.MindfulScroll;
@@ -153,20 +154,38 @@
     const title = document.createElement('h1');
     title.className = 'ms-title';
     title.id = 'ms-title';
-    title.textContent = 'You’ve been scrolling for a while. Still intentional?';
+    title.textContent = t('overlayTitle', 'You’ve been scrolling for a while. Still intentional?');
 
     const subtitle = document.createElement('p');
     subtitle.className = 'ms-subtitle';
     subtitle.id = 'ms-subtitle';
-    subtitle.textContent = `${formatDuration(scrolledSeconds)} of continuous scrolling here. Esc snoozes.`;
+    const scrolled = formatDuration(scrolledSeconds);
+    subtitle.textContent = t(
+      'overlaySubtitle',
+      `${scrolled} of continuous scrolling here. Esc snoozes.`,
+      [scrolled]
+    );
 
     const actions = document.createElement('div');
     actions.className = 'ms-actions';
 
     const specs = [
-      { action: 'break', label: 'Take a break', className: 'ms-btn ms-btn-primary', primary: true },
-      { action: 'continue', label: 'Continue', className: 'ms-btn ms-btn-ghost' },
-      { action: 'snooze', label: 'Remind me later', className: 'ms-btn ms-btn-ghost' }
+      {
+        action: 'break',
+        label: t('actionBreak', 'Take a break'),
+        className: 'ms-btn ms-btn-primary',
+        primary: true
+      },
+      {
+        action: 'continue',
+        label: t('actionContinue', 'Continue'),
+        className: 'ms-btn ms-btn-ghost'
+      },
+      {
+        action: 'snooze',
+        label: t('actionSnooze', 'Remind me later'),
+        className: 'ms-btn ms-btn-ghost'
+      }
     ];
     const buttons = specs.map((spec) => {
       const button = document.createElement('button');
@@ -276,11 +295,11 @@
     const panel = document.createElement('div');
     panel.className = 'ms-break';
     panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-label', 'Break in progress');
+    panel.setAttribute('aria-label', t('breakLabel', 'Break in progress'));
 
     const heading = document.createElement('h1');
     heading.className = 'ms-title';
-    heading.textContent = 'Taking a short break';
+    heading.textContent = t('breakTitle', 'Taking a short break');
 
     const countdown = document.createElement('p');
     countdown.className = 'ms-subtitle';
@@ -289,7 +308,7 @@
     const end = document.createElement('button');
     end.type = 'button';
     end.className = 'ms-btn ms-btn-ghost';
-    end.textContent = 'End break';
+    end.textContent = t('breakEnd', 'End break');
     end.addEventListener('click', endBreak);
 
     panel.append(heading, countdown, end);
@@ -299,7 +318,8 @@
 
     const render = () => {
       const remaining = Math.max(0, Math.round((breakUntil - Date.now()) / 1000));
-      countdown.textContent = `Back in ${formatDuration(remaining)}.`;
+      const left = formatDuration(remaining);
+      countdown.textContent = t('breakCountdown', `Back in ${left}.`, [left]);
       if (remaining <= 0) endBreak();
     };
     render();

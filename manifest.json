@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Mindful Scroll – Smart Doomscroll Interrupter",
-  "version": "1.1.0",
-  "description": "Detects endless scrolling on addictive sites and gently interrupts with a mindful nudge. Not a blocker.",
+  "name": "__MSG_extName__",
+  "version": "1.2.0",
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
   "minimum_chrome_version": "102",
   "permissions": ["storage", "alarms"],
   "host_permissions": [

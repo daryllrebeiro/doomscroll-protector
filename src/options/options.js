@@ -1,5 +1,5 @@
 /** Settings page: thresholds, per-site toggles, strict/adaptive mode. */
-const { MESSAGES, SITES } = window.MindfulScroll;
+const { MESSAGES, SITES, t } = window.MindfulScroll;
 
 const send = (type, payload = {}) => chrome.runtime.sendMessage({ type, payload });
 
@@ -72,12 +72,12 @@ function flash(message) {
 document.getElementById('save').addEventListener('click', async () => {
   const response = await send(MESSAGES.SAVE_SETTINGS, { settings: collect() });
   if (response && response.settings) apply(response.settings);
-  flash('Settings saved.');
+  flash(t('optionsSaved', 'Settings saved.'));
 });
 
 document.getElementById('reset').addEventListener('click', async () => {
   await send(MESSAGES.RESET_STATS);
-  flash('Statistics cleared.');
+  flash(t('optionsStatsCleared', 'Statistics cleared.'));
 });
 
 /** Everything the extension knows about you, as a file you can inspect. */
@@ -91,17 +91,21 @@ document.getElementById('export').addEventListener('click', async () => {
   link.download = `mindful-scroll-${new Date().toISOString().slice(0, 10)}.json`;
   link.click();
   URL.revokeObjectURL(url);
-  flash('Data exported.');
+  flash(t('optionsExported', 'Data exported.'));
 });
 
 document.getElementById('deleteAll').addEventListener('click', async () => {
-  if (!confirm('Delete all Mindful Scroll settings and statistics? This cannot be undone.')) return;
+  const question = t(
+    'optionsDeleteConfirm',
+    'Delete all Mindful Scroll settings and statistics? This cannot be undone.'
+  );
+  if (!confirm(question)) return;
   const response = await send(MESSAGES.DELETE_ALL_DATA);
   if (response && response.ok) {
     const fresh = await send(MESSAGES.GET_SETTINGS);
     if (fresh && fresh.settings) apply(fresh.settings);
   }
-  flash('All data deleted.');
+  flash(t('optionsDeleted', 'All data deleted.'));
 });
 
 send(MESSAGES.GET_SETTINGS).then((response) => {
