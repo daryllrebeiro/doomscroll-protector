@@ -8,9 +8,11 @@ const NUMERIC_FIELDS = [
   'snoozeMinutes',
   'cooldownSeconds',
   'breakSeconds',
-  'maxInterruptionsPerHour'
+  'maxInterruptionsPerHour',
+  'scheduleStartHour',
+  'scheduleEndHour'
 ];
-const BOOLEAN_FIELDS = ['enabled', 'strictMode', 'adaptiveThreshold'];
+const BOOLEAN_FIELDS = ['enabled', 'strictMode', 'adaptiveThreshold', 'scheduleEnabled'];
 
 const statusEl = document.getElementById('status');
 const siteToggles = document.getElementById('siteToggles');
@@ -92,6 +94,39 @@ document.getElementById('export').addEventListener('click', async () => {
   link.click();
   URL.revokeObjectURL(url);
   flash(t('optionsExported', 'Data exported.'));
+});
+
+document.getElementById('import').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json';
+  input.addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      // Validate the import data structure
+      if (!data.settings || typeof data.settings !== 'object') {
+        throw new Error('Invalid settings data');
+      }
+
+      // Import settings and optionally stats
+      const response = await send(MESSAGES.IMPORT_DATA, { data });
+      if (response && response.ok) {
+        apply(response.settings);
+        flash(t('optionsImported', 'Settings imported.'));
+      } else {
+        throw new Error(response.error || 'Import failed');
+      }
+    } catch (error) {
+      flash(t('optionsImportError', 'Invalid import file.'));
+      console.error('Import error:', error);
+    }
+  });
+  input.click();
 });
 
 document.getElementById('deleteAll').addEventListener('click', async () => {

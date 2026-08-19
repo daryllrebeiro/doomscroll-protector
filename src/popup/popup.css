@@ -76,11 +76,43 @@
   width: 100%;
   border-radius: 4px;
   background: var(--accent);
+  transition: background-color 0.2s ease;
+}
+
+.trend-bar-high {
+  background: #ff6b6b;
+}
+
+.trend-bar-medium {
+  background: #ffd93d;
+}
+
+.trend-bar-today {
+  border: 2px solid var(--text);
 }
 
 .trend-label {
   font-size: 10px;
   color: var(--muted);
+}
+
+.trend-indicator {
+  font-size: 11px;
+  padding: 4px 8px;
+  margin-top: 6px;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.trend-up {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.trend-down {
+  background: #e8f5e9;
+  color: #2e7d32;
 }
 
 .site-list {

@@ -61,6 +61,11 @@ pause, or snooze.
 - `alarms` — Wakes the MV3 service worker roughly once a minute to flush
   buffered counters to storage. Without it, counters would either be lost when
   the worker is suspended or written far too frequently.
+- `commands` — Enables keyboard shortcuts for quick access to extension features
+  (toggle on/off, open settings, quick snooze). Improves user convenience.
+- `notifications` — Shows brief confirmation messages when keyboard shortcuts
+  are used (e.g., "Mindful Scroll paused", "Snoozed for 5 minutes"). No personal
+  data is transmitted.
 - **Host permissions** (`twitter.com`, `x.com`, `*.reddit.com`, `*.youtube.com`,
   `*.instagram.com`) — The scroll detector and the overlay run as content
   scripts on exactly these feeds. The extension requests no other host.

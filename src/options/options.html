@@ -114,6 +114,50 @@
           </span>
           <input type="checkbox" id="adaptiveThreshold" />
         </label>
+
+        <label class="row">
+          <span>
+            <strong data-i18n="optionsScheduleEnabled">Time-based scheduling</strong>
+            <small data-i18n="optionsScheduleEnabledHint">
+              Auto-enable during specific hours (e.g., evening hours).
+            </small>
+          </span>
+          <input type="checkbox" id="scheduleEnabled" />
+        </label>
+
+        <label class="row">
+          <span>
+            <strong data-i18n="optionsScheduleStart">Start hour</strong>
+            <small data-i18n="optionsScheduleStartHint">
+              When to automatically enable nudges (0-23).
+            </small>
+          </span>
+          <select id="scheduleStartHour">
+            <option value="18">6 PM</option>
+            <option value="19">7 PM</option>
+            <option value="20">8 PM</option>
+            <option value="21">9 PM</option>
+            <option value="22">10 PM</option>
+            <option value="23">11 PM</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>
+            <strong data-i18n="optionsScheduleEnd">End hour</strong>
+            <small data-i18n="optionsScheduleEndHint">
+              When to automatically disable nudges (0-23).
+            </small>
+          </span>
+          <select id="scheduleEndHour">
+            <option value="0">12 AM</option>
+            <option value="1">1 AM</option>
+            <option value="2">2 AM</option>
+            <option value="3">3 AM</option>
+            <option value="4">4 AM</option>
+            <option value="5">5 AM</option>
+          </select>
+        </label>
       </section>
 
       <section class="card">
@@ -127,6 +171,9 @@
         </button>
         <button type="button" class="btn btn-ghost" id="export" data-i18n="optionsExport">
           Export data
+        </button>
+        <button type="button" class="btn btn-ghost" id="import" data-i18n="optionsImport">
+          Import settings
         </button>
         <button type="button" class="btn btn-ghost" id="reset" data-i18n="optionsResetStats">
           Reset statistics

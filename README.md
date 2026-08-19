@@ -99,7 +99,7 @@ and translate the `message` values.
 
 ## Permissions
 
-`storage` and `alarms`, plus host permissions for the four supported sites only.
+`storage`, `alarms`, `commands`, and `notifications`, plus host permissions for the four supported sites only.
 Justifications for the store review are in [docs/STORE_LISTING.md](docs/STORE_LISTING.md);
 the privacy policy is [docs/PRIVACY.md](docs/PRIVACY.md).
 

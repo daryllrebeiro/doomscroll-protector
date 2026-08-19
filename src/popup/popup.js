@@ -56,10 +56,17 @@ function renderTrend(stats) {
     days.push({
       key,
       label: date.toLocaleDateString(undefined, { weekday: 'narrow' }),
-      seconds: normaliseDay(stats[key]).scrollSeconds
+      seconds: normaliseDay(stats[key]).scrollSeconds,
+      isToday: offset === 0
     });
   }
   const max = Math.max(...days.map((day) => day.seconds), 1);
+
+  // Calculate trend direction (compare today vs yesterday)
+  const todaySeconds = days[days.length - 1].seconds;
+  const yesterdaySeconds = days[days.length - 2].seconds;
+  const trendDirection =
+    todaySeconds > yesterdaySeconds ? 'up' : todaySeconds < yesterdaySeconds ? 'down' : 'same';
 
   for (const day of days) {
     const item = document.createElement('li');
@@ -70,12 +77,36 @@ function renderTrend(stats) {
     bar.className = 'trend-bar';
     bar.style.height = `${Math.max(2, Math.round((day.seconds / max) * 36))}px`;
 
+    // Color code based on usage intensity
+    const intensity = day.seconds / max;
+    if (intensity > 0.8) {
+      bar.classList.add('trend-bar-high');
+    } else if (intensity > 0.5) {
+      bar.classList.add('trend-bar-medium');
+    }
+
+    // Highlight today
+    if (day.isToday) {
+      bar.classList.add('trend-bar-today');
+    }
+
     const label = document.createElement('span');
     label.className = 'trend-label';
     label.textContent = day.label;
 
     item.append(bar, label);
     els.trend.append(item);
+  }
+
+  // Add trend indicator (compare today vs yesterday)
+  if (trendDirection !== 'same' && days[days.length - 1].isToday) {
+    const trendIndicator = document.createElement('div');
+    trendIndicator.className = 'trend-indicator';
+    const arrow = trendDirection === 'up' ? '↑' : '↓';
+    const message = trendDirection === 'up' ? 'Usage increased today' : 'Usage decreased today';
+    trendIndicator.textContent = `${arrow} ${message}`;
+    trendIndicator.classList.add(trendDirection === 'up' ? 'trend-up' : 'trend-down');
+    els.trend.parentElement.insertBefore(trendIndicator, els.trend.nextSibling);
   }
 }
 

@@ -39,7 +39,11 @@
     /** Adaptive threshold: interrupt sooner when nudges keep getting ignored. */
     adaptiveThreshold: true,
     /** Per-site enable flags. */
-    sites: { twitter: true, reddit: true, youtube: true, instagram: true }
+    sites: { twitter: true, reddit: true, youtube: true, instagram: true },
+    /** Time-based scheduling: auto-enable during specific hours. */
+    scheduleEnabled: false,
+    scheduleStartHour: 21, // 9 PM
+    scheduleEndHour: 1 // 1 AM (next day)
   };
 
   const STORAGE_KEYS = {
@@ -53,6 +57,7 @@
     GET_STATS: 'GET_STATS',
     RESET_STATS: 'RESET_STATS',
     EXPORT_DATA: 'EXPORT_DATA',
+    IMPORT_DATA: 'IMPORT_DATA',
     DELETE_ALL_DATA: 'DELETE_ALL_DATA',
     /** One round-trip on injection: settings + ignored count + runtime state. */
     GET_CONTEXT: 'GET_CONTEXT',

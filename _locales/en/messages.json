@@ -78,13 +78,24 @@
   "optionsStrictHint": { "message": "Interrupt sooner and stay quiet for less time." },
   "optionsAdaptive": { "message": "Adaptive threshold" },
   "optionsAdaptiveHint": { "message": "Nudge earlier on days when nudges keep getting ignored." },
+  "optionsScheduleEnabled": { "message": "Time-based scheduling" },
+  "optionsScheduleEnabledHint": {
+    "message": "Auto-enable during specific hours (e.g., evening hours)."
+  },
+  "optionsScheduleStart": { "message": "Start hour" },
+  "optionsScheduleStartHint": { "message": "When to automatically enable nudges (0-23)." },
+  "optionsScheduleEnd": { "message": "End hour" },
+  "optionsScheduleEndHint": { "message": "When to automatically disable nudges (0-23)." },
   "optionsSave": { "message": "Save settings" },
   "optionsExport": { "message": "Export data" },
+  "optionsImport": { "message": "Import settings" },
   "optionsResetStats": { "message": "Reset statistics" },
   "optionsDeleteAll": { "message": "Delete all data" },
   "optionsSaved": { "message": "Settings saved." },
   "optionsStatsCleared": { "message": "Statistics cleared." },
   "optionsExported": { "message": "Data exported." },
+  "optionsImported": { "message": "Settings imported." },
+  "optionsImportError": { "message": "Invalid import file." },
   "optionsDeleted": { "message": "All data deleted." },
   "optionsDeleteConfirm": {
     "message": "Delete all Mindful Scroll settings and statistics? This cannot be undone."
@@ -115,5 +126,15 @@
   "optionMinutes5": { "message": "5 minutes" },
   "optionMinutes10": { "message": "10 minutes" },
   "optionMinutes15": { "message": "15 minutes" },
-  "optionSeconds30": { "message": "30 seconds" }
+  "optionSeconds30": { "message": "30 seconds" },
+
+  "commandToggle": { "message": "Toggle Mindful Scroll on/off" },
+  "commandSettings": { "message": "Open Mindful Scroll settings" },
+  "commandSnooze": { "message": "Quick snooze for 5 minutes" },
+  "notificationPaused": { "message": "Mindful Scroll paused" },
+  "notificationEnabled": { "message": "Mindful Scroll enabled" },
+  "notificationSnoozed": {
+    "message": "Snoozed for $MINUTES$ minutes",
+    "placeholders": { "minutes": { "content": "$1", "example": "5" } }
+  }
 }

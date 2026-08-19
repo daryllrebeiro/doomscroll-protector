@@ -22,7 +22,8 @@ const {
   emptyDay,
   normaliseDay,
   ignoredCount,
-  migrations
+  migrations,
+  siteIdForHost
 } = self.MindfulScroll;
 
 /** Commit buffered stats at most once a minute (alarms cannot fire faster). */
@@ -249,6 +250,30 @@ const handlers = {
     };
   },
 
+  async [MESSAGES.IMPORT_DATA](payload) {
+    const { settings, stats } = (payload && payload.data) || {};
+    if (!settings || typeof settings !== 'object') {
+      return { ok: false, error: 'Invalid settings data' };
+    }
+
+    // Import settings with validation
+    const importedSettings = withDefaults(settings);
+    await chrome.storage.local.set({ [STORAGE_KEYS.settings]: importedSettings });
+
+    // Optionally import stats if provided and valid
+    if (stats && typeof stats === 'object') {
+      const validatedStats = {};
+      for (const [key, day] of Object.entries(stats)) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+          validatedStats[key] = normaliseDay(day);
+        }
+      }
+      await chrome.storage.local.set({ [STORAGE_KEYS.stats]: validatedStats });
+    }
+
+    return { ok: true, settings: importedSettings };
+  },
+
   async [MESSAGES.DELETE_ALL_DATA]() {
     buffer.clear();
     await chrome.storage.local.clear();
@@ -329,8 +354,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 chrome.alarms.create(FLUSH_ALARM, { periodInMinutes: FLUSH_PERIOD_MINUTES });
 
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === FLUSH_ALARM) commit();
+const SCHEDULE_ALARM = 'mindful-scroll-schedule-check';
+chrome.alarms.create(SCHEDULE_ALARM, { periodInMinutes: 5 });
+
+/** Check if current time is within the scheduled active window */
+function isWithinSchedule(settings) {
+  if (!settings.scheduleEnabled) return true;
+  const now = new Date();
+  const currentHour = now.getHours();
+  const start = settings.scheduleStartHour || 21;
+  const end = settings.scheduleEndHour || 1;
+  if (start <= end) {
+    return currentHour >= start && currentHour < end;
+  } else {
+    return currentHour >= start || currentHour < end;
+  }
+}
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === FLUSH_ALARM) {
+    commit();
+  } else if (alarm.name === SCHEDULE_ALARM) {
+    const settings = await getSettings();
+    if (settings.scheduleEnabled) {
+      const shouldBeEnabled = isWithinSchedule(settings);
+      if (settings.enabled !== shouldBeEnabled) {
+        await saveSettings({ enabled: shouldBeEnabled });
+      }
+    }
+  }
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
@@ -345,9 +397,92 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 chrome.runtime.onInstalled.addListener(async () => {
   await runMigrations();
   chrome.alarms.create(FLUSH_ALARM, { periodInMinutes: FLUSH_PERIOD_MINUTES });
+  chrome.alarms.create(SCHEDULE_ALARM, { periodInMinutes: 5 });
+
+  // Check schedule on install/update
+  const settings = await getSettings();
+  if (settings.scheduleEnabled) {
+    const shouldBeEnabled = isWithinSchedule(settings);
+    if (settings.enabled !== shouldBeEnabled) {
+      await saveSettings({ enabled: shouldBeEnabled });
+    }
+  }
 });
 
-chrome.runtime.onStartup.addListener(() => runMigrations());
+chrome.runtime.onStartup.addListener(async () => {
+  runMigrations();
+  chrome.alarms.create(SCHEDULE_ALARM, { periodInMinutes: 5 });
+
+  // Check schedule on startup
+  const settings = await getSettings();
+  if (settings.scheduleEnabled) {
+    const shouldBeEnabled = isWithinSchedule(settings);
+    if (settings.enabled !== shouldBeEnabled) {
+      await saveSettings({ enabled: shouldBeEnabled });
+    }
+  }
+});
+
+// Handle keyboard commands
+chrome.commands.onCommand.addListener(async (command) => {
+  const settings = await getSettings();
+  const t = (key, fallback) => chrome.i18n.getMessage(key) || fallback;
+
+  switch (command) {
+    case 'toggle-extension': {
+      await saveSettings({ enabled: !settings.enabled });
+      // Show notification for the toggle action
+      if (chrome.notifications) {
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'assets/icon128.png',
+          title: 'Mindful Scroll',
+          message: settings.enabled
+            ? t('notificationPaused', 'Mindful Scroll paused')
+            : t('notificationEnabled', 'Mindful Scroll enabled')
+        });
+      }
+      break;
+    }
+
+    case 'open-settings': {
+      chrome.runtime.openOptionsPage();
+      break;
+    }
+
+    case 'quick-snooze': {
+      // Set a temporary quiet period for all tabs
+      const quietUntil = Date.now() + settings.snoozeMinutes * 60 * 1000;
+      const allTabs = await chrome.tabs.query({});
+      for (const tab of allTabs) {
+        const url = tab.url;
+        let site = null;
+        if (url) {
+          try {
+            const hostname = new URL(url).hostname;
+            site = siteIdForHost(hostname);
+          } catch {
+            // Invalid URL, skip this tab
+          }
+        }
+        if (site) {
+          await writeRuntime(tab.id, site, { quietUntil });
+        }
+      }
+      if (chrome.notifications) {
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'assets/icon128.png',
+          title: 'Mindful Scroll',
+          message: t('notificationSnoozed', `Snoozed for ${settings.snoozeMinutes} minutes`, [
+            settings.snoozeMinutes
+          ])
+        });
+      }
+      break;
+    }
+  }
+});
 
 // Last chance to persist before the worker is torn down.
 chrome.runtime.onSuspend.addListener(() => commit());

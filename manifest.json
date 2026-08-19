@@ -5,7 +5,7 @@
   "description": "__MSG_extDescription__",
   "default_locale": "en",
   "minimum_chrome_version": "102",
-  "permissions": ["storage", "alarms"],
+  "permissions": ["storage", "alarms", "commands", "notifications"],
   "host_permissions": [
     "https://twitter.com/*",
     "https://x.com/*",
@@ -15,6 +15,29 @@
   ],
   "background": {
     "service_worker": "src/background/service_worker.js"
+  },
+  "commands": {
+    "toggle-extension": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+M",
+        "mac": "Command+Shift+M"
+      },
+      "description": "__MSG_commandToggle__"
+    },
+    "open-settings": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "__MSG_commandSettings__"
+    },
+    "quick-snooze": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Z",
+        "mac": "Command+Shift+Z"
+      },
+      "description": "__MSG_commandSnooze__"
+    }
   },
   "action": {
     "default_title": "Mindful Scroll",

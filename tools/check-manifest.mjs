@@ -15,7 +15,7 @@ const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 const errors = [];
 const MV2_KEYS = ['background.scripts', 'background.persistent', 'browser_action', 'page_action'];
-const ALLOWED_PERMISSIONS = ['storage', 'alarms'];
+const ALLOWED_PERMISSIONS = ['storage', 'alarms', 'commands', 'notifications'];
 
 function fileMustExist(filePath, context) {
   if (!filePath || existsSync(join(root, filePath))) return;
