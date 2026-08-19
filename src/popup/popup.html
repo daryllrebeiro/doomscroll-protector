@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mindful Scroll</title>
+    <link rel="stylesheet" href="../shared/ui.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body class="popup">
+    <header class="header">
+      <h1>Mindful Scroll</h1>
+      <label class="switch" title="Enable or pause nudges">
+        <input type="checkbox" id="enabled" />
+        <span>On</span>
+      </label>
+    </header>
+
+    <section class="stats">
+      <div class="stat">
+        <span class="stat-value" id="scrollTime">–</span>
+        <span class="stat-label">scrolled today</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="interruptions">–</span>
+        <span class="stat-label">nudges</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="ignored">–</span>
+        <span class="stat-label">ignored</span>
+      </div>
+    </section>
+
+    <p class="summary" id="summary"></p>
+
+    <section>
+      <h2 class="section-title">By site</h2>
+      <ul class="site-list" id="siteList"></ul>
+    </section>
+
+    <footer class="footer">
+      <button type="button" class="link" id="openOptions">Settings</button>
+    </footer>
+
+    <script src="../shared/constants.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
