@@ -1,5 +1,6 @@
 import js from '@eslint/js';
 import globals from 'globals';
+import noUnsanitized from 'eslint-plugin-no-unsanitized';
 
 /**
  * The extension ships as classic scripts (no bundler), so extension sources are
@@ -20,11 +21,16 @@ export default [
         importScripts: 'readonly'
       }
     },
+    plugins: {
+      'no-unsanitized': noUnsanitized
+    },
     rules: {
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'no-implicit-globals': 'off',
       eqeqeq: ['error', 'smart'],
-      'prefer-const': 'error'
+      'prefer-const': 'error',
+      'no-unsanitized/method': 'error',
+      'no-unsanitized/property': 'error'
     }
   },
   {

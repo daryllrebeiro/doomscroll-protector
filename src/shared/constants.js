@@ -215,7 +215,8 @@
   /**
    * Analyze usage data to find peak usage times.
    * @param {object} stats - Daily stats buckets
-   * @returns {object} Peak usage analysis
+   * @returns {{ peakHour: number, peakHourFormatted: string, peakDay: string, totalDays: number, averageDailySeconds: number } | null}
+   *   Peak usage analysis
    */
   function analyzePeakUsage(stats) {
     const days = Object.keys(stats).filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(key));
@@ -373,6 +374,10 @@
     };
   }
 
+  /** The complete global is filled incrementally by each classic script
+   *  (constants → detector → sites → migrations → i18n), so we use @ts-ignore:
+   *  TypeScript cannot see the incremental namespace construction. */
+  // @ts-ignore incremental classic-script namespace
   global.MindfulScroll = {
     SCHEMA_VERSION,
     SITES,

@@ -10,15 +10,31 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "typecheck": "tsc --noEmit --allowJs --checkJs",
     "check:manifest": "node tools/check-manifest.mjs",
     "package": "node tools/package.mjs",
-    "verify": "npm run lint && npm run format:check && npm run check:manifest && npm run test"
+    "verify": "npm run lint && npm run format:check && npm run typecheck && npm run check:manifest && npm run test",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,mjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,html,css}": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
     "@eslint/js": "9.13.0",
+    "@types/chrome": "^0.2.6",
     "eslint": "^9.39.5",
+    "eslint-plugin-no-unsanitized": "^4.1.5",
     "globals": "15.11.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
     "prettier": "3.3.3",
+    "typescript": "^7.0.2",
     "vitest": "^2.1.9"
   }
 }

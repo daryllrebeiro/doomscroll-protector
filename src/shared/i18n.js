@@ -1,3 +1,4 @@
+// @ts-nocheck — thin wiring shell; type checking focuses on the pure logic files.
 /**
  * Localises the popup and options markup.
  *

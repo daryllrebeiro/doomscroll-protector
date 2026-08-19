@@ -1,3 +1,4 @@
+// @ts-nocheck — thin wiring shell; type checking focuses on the pure logic files.
 /** Settings page: thresholds, per-site toggles, strict/adaptive mode. */
 const { MESSAGES, SITES, t } = window.MindfulScroll;
 

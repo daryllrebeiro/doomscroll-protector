@@ -40,7 +40,7 @@
 
   /** True when the user is typing somewhere — never interrupt composition. */
   function isComposing() {
-    const active = document.activeElement;
+    const active = /** @type {HTMLElement | null} */ (document.activeElement);
     if (!active) return false;
     const tag = active.tagName;
     return (

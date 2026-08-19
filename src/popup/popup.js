@@ -1,3 +1,4 @@
+// @ts-nocheck — thin wiring shell; type checking focuses on the pure logic files.
 /** Popup dashboard: today's scrolling, nudges and how many were ignored. */
 const { MESSAGES, SITES, dateKey, normaliseDay, ignoredCount, formatDuration, t } =
   window.MindfulScroll;
@@ -139,7 +140,11 @@ function renderWeeklySummary(summary) {
   for (const item of items) {
     const div = document.createElement('div');
     div.className = 'weekly-summary-item';
-    div.innerHTML = `<span>${item.label}</span><span>${item.value}</span>`;
+    const label = document.createElement('span');
+    label.textContent = item.label;
+    const value = document.createElement('span');
+    value.textContent = item.value;
+    div.append(label, value);
     els.weeklySummary.append(div);
   }
 }

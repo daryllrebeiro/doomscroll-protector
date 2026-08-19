@@ -25,7 +25,7 @@
    * @param {object} options.settings
    * @param {() => number} [options.now]        Injectable clock (ms).
    * @param {number} [options.ignoredToday]     Nudges ignored today, for the adaptive threshold.
-   * @param {object} [options.restored]         Runtime state recovered from storage.session.
+   * @param {{ activeSeconds?: number, quietUntil?: number, nudgeHistory?: number[], breakUntil?: number }} [options.restored]  Runtime state recovered from storage.session.
    */
   function createDetector({ settings, now = () => Date.now(), ignoredToday = 0, restored = {} }) {
     let config = withDefaults(settings);
@@ -48,9 +48,13 @@
 
     function withinFrequencyCap(timestamp) {
       nudgeHistory = nudgeHistory.filter((at) => timestamp - at < HOUR_MS);
-      if (nudgeHistory.length >= config.maxInterruptionsPerHour) return false;
+      /** @type {number} */
+      const maxPerHour = Number(config.maxInterruptionsPerHour) || 0;
+      /** @type {number} */
+      const minGapSeconds = Number(config.minSecondsBetweenInterruptions) || 0;
+      if (nudgeHistory.length >= maxPerHour) return false;
       const last = nudgeHistory[nudgeHistory.length - 1];
-      if (last && timestamp - last < config.minSecondsBetweenInterruptions * 1000) return false;
+      if (last && timestamp - last < minGapSeconds * 1000) return false;
       return true;
     }
 
@@ -114,7 +118,7 @@
        * @param {boolean} context.overlayOpen An overlay is already on screen.
        * @returns {{ activeSeconds: number, shouldNudge: boolean, deferred: boolean }}
        */
-      tick(context = {}) {
+      tick(context = { hidden: false, feedSurface: true, suppressed: false, overlayOpen: false }) {
         const timestamp = now();
         const elapsedMs = Math.min(Math.max(timestamp - lastTickAt, 0), MAX_TICK_MS);
         lastTickAt = timestamp;

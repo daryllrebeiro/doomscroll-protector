@@ -25,7 +25,9 @@
   });
 
   function isPlayingInline() {
-    const video = document.querySelector('video.html5-main-video, video');
+    const video = /** @type {HTMLVideoElement | null} */ (
+      document.querySelector('video.html5-main-video, video')
+    );
     return Boolean(video && !video.paused && video.currentTime > 0);
   }
 })(typeof self !== 'undefined' ? self : globalThis);
