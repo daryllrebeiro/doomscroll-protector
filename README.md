@@ -57,8 +57,11 @@ src/
   popup/                         today's dashboard + 7-day trend
   options/                       settings page, data export/delete
   shared/constants.js            settings defaults, site list, message types, helpers
+  shared/i18n.js                 applies _locales strings to popup/options markup
   shared/migrations.js           storage schema migrations
   shared/ui.css                  shared popup/options styling
+_locales/en/messages.json        UI strings
+docs/                            production plan, privacy policy, store listing, release runbook
 tests/                           Vitest unit tests
 tools/check-manifest.mjs         manifest sanity check
 tools/package.mjs                builds dist/mindful-scroll-<version>.zip
@@ -85,9 +88,20 @@ Per-tab runtime state (cooldown, break, nudge history, session counters) lives i
 does not reset a cooldown or cancel a break. Nothing leaves the device; the options page can
 export everything as JSON or delete it all.
 
+## Localisation
+
+User-visible strings live in `_locales/en/messages.json`. Markup carries the English
+text inline plus a `data-i18n` key, and code calls `t(key, englishFallback, subs)`, so a
+missing catalogue degrades to English instead of blank UI. `npm run check:manifest`
+fails on any `__MSG_*__`, `data-i18n` or `t('…')` key that the catalogue does not define.
+To add a language, copy `_locales/en/messages.json` to `_locales/<code>/messages.json`
+and translate the `message` values.
+
 ## Permissions
 
 `storage` and `alarms`, plus host permissions for the four supported sites only.
+Justifications for the store review are in [docs/STORE_LISTING.md](docs/STORE_LISTING.md);
+the privacy policy is [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Development
 
@@ -96,3 +110,5 @@ npm install
 npm run verify   # lint + format check + manifest check + unit tests
 npm run package  # dist/mindful-scroll-<version>.zip for the Web Store
 ```
+
+Releasing is tag-driven — see [docs/RELEASE.md](docs/RELEASE.md).

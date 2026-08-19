@@ -1,5 +1,5 @@
 /** Popup dashboard: today's scrolling, nudges and how many were ignored. */
-const { MESSAGES, SITES, dateKey, normaliseDay, ignoredCount, formatDuration } =
+const { MESSAGES, SITES, dateKey, normaliseDay, ignoredCount, formatDuration, t } =
   window.MindfulScroll;
 
 const els = {
@@ -27,7 +27,7 @@ function renderSites(perSite) {
   if (entries.length === 0) {
     const empty = document.createElement('li');
     empty.className = 'site empty';
-    empty.textContent = 'No scrolling tracked yet today.';
+    empty.textContent = t('popupNoScrolling', 'No scrolling tracked yet today.');
     els.siteList.append(empty);
     return;
   }
@@ -80,7 +80,7 @@ function renderTrend(stats) {
 }
 
 function renderError() {
-  els.summary.textContent = 'Could not load stats — try reopening the popup.';
+  els.summary.textContent = t('popupError', 'Could not load stats — try reopening the popup.');
   els.scrollTime.textContent = '–';
   els.interruptions.textContent = '–';
   els.ignored.textContent = '–';
@@ -99,10 +99,15 @@ async function render() {
   els.scrollTime.textContent = formatDuration(today.scrollSeconds);
   els.interruptions.textContent = String(today.interruptions);
   els.ignored.textContent = String(ignored);
+  const breaks = today.actions.break || 0;
   els.summary.textContent =
     today.interruptions === 0
-      ? 'No interruptions yet today.'
-      : `You ignored ${ignored} of ${today.interruptions} interruption${today.interruptions === 1 ? '' : 's'}, and took ${today.actions.break || 0} break${(today.actions.break || 0) === 1 ? '' : 's'}.`;
+      ? t('popupNoInterruptions', 'No interruptions yet today.')
+      : t(
+          'popupSummary',
+          `Ignored ${ignored} of ${today.interruptions} nudges today · ${breaks} breaks taken.`,
+          [String(ignored), String(today.interruptions), String(breaks)]
+        );
 
   renderTrend(stats || {});
   renderSites(today.perSite || {});

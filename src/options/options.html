@@ -2,82 +2,90 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Mindful Scroll – Settings</title>
+    <title data-i18n="optionsTitle">Mindful Scroll – Settings</title>
     <link rel="stylesheet" href="../shared/ui.css" />
     <link rel="stylesheet" href="options.css" />
   </head>
   <body class="options">
     <main class="page">
-      <h1>Mindful Scroll settings</h1>
-      <p class="lead">Gentle nudges when scrolling stops being intentional.</p>
+      <h1 data-i18n="optionsHeading">Mindful Scroll settings</h1>
+      <p class="lead" data-i18n="optionsLead">
+        Gentle nudges when scrolling stops being intentional.
+      </p>
 
       <section class="card">
-        <h2 class="section-title">Nudges</h2>
+        <h2 class="section-title" data-i18n="optionsSectionNudges">Nudges</h2>
 
         <label class="row">
           <span>
-            <strong>Enable nudges</strong>
-            <small>Pause everything without uninstalling.</small>
+            <strong data-i18n="optionsEnabled">Enable nudges</strong>
+            <small data-i18n="optionsEnabledHint">Pause everything without uninstalling.</small>
           </span>
           <input type="checkbox" id="enabled" />
         </label>
 
         <label class="row">
           <span>
-            <strong>Scroll threshold</strong>
-            <small>Continuous scrolling before a check-in.</small>
+            <strong data-i18n="optionsThreshold">Scroll threshold</strong>
+            <small data-i18n="optionsThresholdHint">Continuous scrolling before a check-in.</small>
           </span>
           <select id="scrollThresholdSeconds">
-            <option value="60">1 minute</option>
-            <option value="120">2 minutes</option>
-            <option value="180">3 minutes</option>
-            <option value="300">5 minutes</option>
-            <option value="600">10 minutes</option>
+            <option value="60" data-i18n="optionMinute1">1 minute</option>
+            <option value="120" data-i18n="optionMinutes2">2 minutes</option>
+            <option value="180" data-i18n="optionMinutes3">3 minutes</option>
+            <option value="300" data-i18n="optionMinutes5">5 minutes</option>
+            <option value="600" data-i18n="optionMinutes10">10 minutes</option>
           </select>
         </label>
 
         <label class="row">
           <span>
-            <strong>Snooze length</strong>
-            <small>Quiet time after "Remind me later".</small>
+            <strong data-i18n="optionsSnooze">Snooze length</strong>
+            <small data-i18n="optionsSnoozeHint">Quiet time after “Remind me later”.</small>
           </span>
           <select id="snoozeMinutes">
-            <option value="2">2 minutes</option>
-            <option value="5">5 minutes</option>
-            <option value="10">10 minutes</option>
-            <option value="15">15 minutes</option>
+            <option value="2" data-i18n="optionMinutes2">2 minutes</option>
+            <option value="5" data-i18n="optionMinutes5">5 minutes</option>
+            <option value="10" data-i18n="optionMinutes10">10 minutes</option>
+            <option value="15" data-i18n="optionMinutes15">15 minutes</option>
           </select>
         </label>
 
         <label class="row">
           <span>
-            <strong>Cooldown</strong>
-            <small>Quiet time after "Continue", so nudges never nag.</small>
+            <strong data-i18n="optionsCooldown">Cooldown</strong>
+            <small data-i18n="optionsCooldownHint">
+              Quiet time after “Continue”, so nudges never nag.
+            </small>
           </span>
           <select id="cooldownSeconds">
-            <option value="60">1 minute</option>
-            <option value="180">3 minutes</option>
-            <option value="300">5 minutes</option>
-            <option value="600">10 minutes</option>
+            <option value="60" data-i18n="optionMinute1">1 minute</option>
+            <option value="180" data-i18n="optionMinutes3">3 minutes</option>
+            <option value="300" data-i18n="optionMinutes5">5 minutes</option>
+            <option value="600" data-i18n="optionMinutes10">10 minutes</option>
           </select>
         </label>
 
         <label class="row">
           <span>
-            <strong>Break length</strong>
-            <small>How long the feed stays blurred after "Take a break".</small>
+            <strong data-i18n="optionsBreak">Break length</strong>
+            <small data-i18n="optionsBreakHint">
+              How long the feed stays blurred after “Take a break”.
+            </small>
           </span>
           <select id="breakSeconds">
-            <option value="30">30 seconds</option>
-            <option value="60">1 minute</option>
-            <option value="300">5 minutes</option>
+            <option value="30" data-i18n="optionSeconds30">30 seconds</option>
+            <option value="60" data-i18n="optionMinute1">1 minute</option>
+            <option value="300" data-i18n="optionMinutes5">5 minutes</option>
           </select>
         </label>
 
         <label class="row">
           <span>
-            <strong>Maximum nudges per hour</strong>
-            <small>Hard cap; nudges are never closer than a minute apart.</small>
+            <strong data-i18n="optionsMaxPerHour">Maximum nudges per hour</strong>
+            <small data-i18n="optionsMaxPerHourHint">
+              Hard cap; nudges are never closer than a minute apart.
+            </small>
           </span>
           <select id="maxInterruptionsPerHour">
             <option value="2">2</option>
@@ -89,36 +97,49 @@
 
         <label class="row">
           <span>
-            <strong>Strict mode</strong>
-            <small>Interrupt sooner and stay quiet for less time.</small>
+            <strong data-i18n="optionsStrict">Strict mode</strong>
+            <small data-i18n="optionsStrictHint"
+              >Interrupt sooner and stay quiet for less time.</small
+            >
           </span>
           <input type="checkbox" id="strictMode" />
         </label>
 
         <label class="row">
           <span>
-            <strong>Adaptive threshold</strong>
-            <small>Nudge earlier on days when nudges keep getting ignored.</small>
+            <strong data-i18n="optionsAdaptive">Adaptive threshold</strong>
+            <small data-i18n="optionsAdaptiveHint">
+              Nudge earlier on days when nudges keep getting ignored.
+            </small>
           </span>
           <input type="checkbox" id="adaptiveThreshold" />
         </label>
       </section>
 
       <section class="card">
-        <h2 class="section-title">Sites</h2>
+        <h2 class="section-title" data-i18n="optionsSectionSites">Sites</h2>
         <div id="siteToggles" class="site-toggles"></div>
       </section>
 
       <div class="actions">
-        <button type="button" class="btn btn-primary" id="save">Save settings</button>
-        <button type="button" class="btn btn-ghost" id="export">Export data</button>
-        <button type="button" class="btn btn-ghost" id="reset">Reset statistics</button>
-        <button type="button" class="btn btn-ghost" id="deleteAll">Delete all data</button>
+        <button type="button" class="btn btn-primary" id="save" data-i18n="optionsSave">
+          Save settings
+        </button>
+        <button type="button" class="btn btn-ghost" id="export" data-i18n="optionsExport">
+          Export data
+        </button>
+        <button type="button" class="btn btn-ghost" id="reset" data-i18n="optionsResetStats">
+          Reset statistics
+        </button>
+        <button type="button" class="btn btn-ghost" id="deleteAll" data-i18n="optionsDeleteAll">
+          Delete all data
+        </button>
         <span class="status" id="status" role="status"></span>
       </div>
     </main>
 
     <script src="../shared/constants.js"></script>
+    <script src="../shared/i18n.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

@@ -152,15 +152,31 @@
     return (actions.continue || 0) + (actions.ignored || 0);
   }
 
+  /**
+   * Localised string lookup. `fallback` is the English source text, which keeps
+   * the code readable and keeps everything working outside an extension context
+   * (unit tests, and any locale whose catalogue is missing a key).
+   *
+   * @param {string} key
+   * @param {string} fallback
+   * @param {string[]} [substitutions]
+   */
+  function t(key, fallback, substitutions = []) {
+    const i18n = global.chrome && global.chrome.i18n;
+    const message = i18n && i18n.getMessage ? i18n.getMessage(key, substitutions) : '';
+    return message || fallback;
+  }
+
   /** "1h 04m" / "4m 20s" / "35s" */
   function formatDuration(totalSeconds) {
     const seconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
-    if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`;
-    return `${s}s`;
+    const h = String(Math.floor(seconds / 3600));
+    const m = String(Math.floor((seconds % 3600) / 60));
+    const s = String(seconds % 60);
+    const pad = (value) => value.padStart(2, '0');
+    if (Number(h) > 0) return t('durationHours', `${h}h ${pad(m)}m`, [h, pad(m)]);
+    if (Number(m) > 0) return t('durationMinutes', `${m}m ${pad(s)}s`, [m, pad(s)]);
+    return t('durationSeconds', `${s}s`, [s]);
   }
 
   /**
@@ -206,6 +222,7 @@
     emptyDay,
     normaliseDay,
     ignoredCount,
+    t,
     formatDuration,
     thresholdSeconds,
     quietMsForAction

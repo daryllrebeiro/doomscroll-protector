@@ -1,0 +1,119 @@
+{
+  "extName": {
+    "message": "Mindful Scroll – Smart Doomscroll Interrupter",
+    "description": "Extension name, shown in the Chrome Web Store and the extensions page."
+  },
+  "extDescription": {
+    "message": "Detects endless scrolling on addictive sites and gently interrupts with a mindful nudge. Not a blocker.",
+    "description": "Extension description, shown in the Chrome Web Store."
+  },
+
+  "overlayTitle": {
+    "message": "You’ve been scrolling for a while. Still intentional?",
+    "description": "Heading of the interruption card."
+  },
+  "overlaySubtitle": {
+    "message": "$DURATION$ of continuous scrolling here. Esc snoozes.",
+    "description": "Body of the interruption card.",
+    "placeholders": {
+      "duration": { "content": "$1", "example": "4m 20s" }
+    }
+  },
+  "actionBreak": { "message": "Take a break" },
+  "actionContinue": { "message": "Continue" },
+  "actionSnooze": { "message": "Remind me later" },
+
+  "breakTitle": { "message": "Taking a short break" },
+  "breakLabel": {
+    "message": "Break in progress",
+    "description": "Accessible name of the break panel."
+  },
+  "breakCountdown": {
+    "message": "Back in $DURATION$.",
+    "placeholders": {
+      "duration": { "content": "$1", "example": "58s" }
+    }
+  },
+  "breakEnd": { "message": "End break" },
+
+  "popupToggleTitle": { "message": "Enable or pause nudges" },
+  "popupToggleLabel": { "message": "On" },
+  "popupStatScrolled": { "message": "scrolled today" },
+  "popupStatNudges": { "message": "nudges" },
+  "popupStatIgnored": { "message": "ignored" },
+  "popupLoading": { "message": "Loading…" },
+  "popupTrendTitle": { "message": "Last 7 days" },
+  "popupSitesTitle": { "message": "By site" },
+  "popupSettings": { "message": "Settings" },
+  "popupNoScrolling": { "message": "No scrolling tracked yet today." },
+  "popupNoInterruptions": { "message": "No interruptions yet today." },
+  "popupSummary": {
+    "message": "Ignored $IGNORED$ of $TOTAL$ nudges today · $BREAKS$ breaks taken.",
+    "placeholders": {
+      "ignored": { "content": "$1", "example": "2" },
+      "total": { "content": "$2", "example": "3" },
+      "breaks": { "content": "$3", "example": "1" }
+    }
+  },
+  "popupError": { "message": "Could not load stats — try reopening the popup." },
+
+  "optionsTitle": { "message": "Mindful Scroll – Settings" },
+  "optionsHeading": { "message": "Mindful Scroll settings" },
+  "optionsLead": { "message": "Gentle nudges when scrolling stops being intentional." },
+  "optionsSectionNudges": { "message": "Nudges" },
+  "optionsSectionSites": { "message": "Sites" },
+  "optionsEnabled": { "message": "Enable nudges" },
+  "optionsEnabledHint": { "message": "Pause everything without uninstalling." },
+  "optionsThreshold": { "message": "Scroll threshold" },
+  "optionsThresholdHint": { "message": "Continuous scrolling before a check-in." },
+  "optionsSnooze": { "message": "Snooze length" },
+  "optionsSnoozeHint": { "message": "Quiet time after “Remind me later”." },
+  "optionsCooldown": { "message": "Cooldown" },
+  "optionsCooldownHint": { "message": "Quiet time after “Continue”, so nudges never nag." },
+  "optionsBreak": { "message": "Break length" },
+  "optionsBreakHint": { "message": "How long the feed stays blurred after “Take a break”." },
+  "optionsMaxPerHour": { "message": "Maximum nudges per hour" },
+  "optionsMaxPerHourHint": { "message": "Hard cap; nudges are never closer than a minute apart." },
+  "optionsStrict": { "message": "Strict mode" },
+  "optionsStrictHint": { "message": "Interrupt sooner and stay quiet for less time." },
+  "optionsAdaptive": { "message": "Adaptive threshold" },
+  "optionsAdaptiveHint": { "message": "Nudge earlier on days when nudges keep getting ignored." },
+  "optionsSave": { "message": "Save settings" },
+  "optionsExport": { "message": "Export data" },
+  "optionsResetStats": { "message": "Reset statistics" },
+  "optionsDeleteAll": { "message": "Delete all data" },
+  "optionsSaved": { "message": "Settings saved." },
+  "optionsStatsCleared": { "message": "Statistics cleared." },
+  "optionsExported": { "message": "Data exported." },
+  "optionsDeleted": { "message": "All data deleted." },
+  "optionsDeleteConfirm": {
+    "message": "Delete all Mindful Scroll settings and statistics? This cannot be undone."
+  },
+
+  "durationSeconds": {
+    "message": "$SECONDS$s",
+    "placeholders": { "seconds": { "content": "$1", "example": "35" } }
+  },
+  "durationMinutes": {
+    "message": "$MINUTES$m $SECONDS$s",
+    "placeholders": {
+      "minutes": { "content": "$1", "example": "4" },
+      "seconds": { "content": "$2", "example": "20" }
+    }
+  },
+  "durationHours": {
+    "message": "$HOURS$h $MINUTES$m",
+    "placeholders": {
+      "hours": { "content": "$1", "example": "1" },
+      "minutes": { "content": "$2", "example": "04" }
+    }
+  },
+
+  "optionMinute1": { "message": "1 minute" },
+  "optionMinutes2": { "message": "2 minutes" },
+  "optionMinutes3": { "message": "3 minutes" },
+  "optionMinutes5": { "message": "5 minutes" },
+  "optionMinutes10": { "message": "10 minutes" },
+  "optionMinutes15": { "message": "15 minutes" },
+  "optionSeconds30": { "message": "30 seconds" }
+}

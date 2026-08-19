@@ -9,44 +9,47 @@
   <body class="popup">
     <header class="header">
       <h1>Mindful Scroll</h1>
-      <label class="switch" title="Enable or pause nudges">
+      <label class="switch" title="Enable or pause nudges" data-i18n-title="popupToggleTitle">
         <input type="checkbox" id="enabled" />
-        <span>On</span>
+        <span data-i18n="popupToggleLabel">On</span>
       </label>
     </header>
 
     <section class="stats">
       <div class="stat">
         <span class="stat-value" id="scrollTime">–</span>
-        <span class="stat-label">scrolled today</span>
+        <span class="stat-label" data-i18n="popupStatScrolled">scrolled today</span>
       </div>
       <div class="stat">
         <span class="stat-value" id="interruptions">–</span>
-        <span class="stat-label">nudges</span>
+        <span class="stat-label" data-i18n="popupStatNudges">nudges</span>
       </div>
       <div class="stat">
         <span class="stat-value" id="ignored">–</span>
-        <span class="stat-label">ignored</span>
+        <span class="stat-label" data-i18n="popupStatIgnored">ignored</span>
       </div>
     </section>
 
-    <p class="summary" id="summary">Loading…</p>
+    <p class="summary" id="summary" data-i18n="popupLoading">Loading…</p>
 
     <section>
-      <h2 class="section-title">Last 7 days</h2>
+      <h2 class="section-title" data-i18n="popupTrendTitle">Last 7 days</h2>
       <ul class="trend" id="trend"></ul>
     </section>
 
     <section>
-      <h2 class="section-title">By site</h2>
+      <h2 class="section-title" data-i18n="popupSitesTitle">By site</h2>
       <ul class="site-list" id="siteList"></ul>
     </section>
 
     <footer class="footer">
-      <button type="button" class="link" id="openOptions">Settings</button>
+      <button type="button" class="link" id="openOptions" data-i18n="popupSettings">
+        Settings
+      </button>
     </footer>
 
     <script src="../shared/constants.js"></script>
+    <script src="../shared/i18n.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>
