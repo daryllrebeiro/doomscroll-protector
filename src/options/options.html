@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mindful Scroll – Settings</title>
+    <link rel="stylesheet" href="../shared/ui.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body class="options">
+    <main class="page">
+      <h1>Mindful Scroll settings</h1>
+      <p class="lead">Gentle nudges when scrolling stops being intentional.</p>
+
+      <section class="card">
+        <h2 class="section-title">Nudges</h2>
+
+        <label class="row">
+          <span>
+            <strong>Enable nudges</strong>
+            <small>Pause everything without uninstalling.</small>
+          </span>
+          <input type="checkbox" id="enabled" />
+        </label>
+
+        <label class="row">
+          <span>
+            <strong>Scroll threshold</strong>
+            <small>Continuous scrolling before a check-in.</small>
+          </span>
+          <select id="scrollThresholdSeconds">
+            <option value="60">1 minute</option>
+            <option value="120">2 minutes</option>
+            <option value="180">3 minutes</option>
+            <option value="300">5 minutes</option>
+            <option value="600">10 minutes</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>
+            <strong>Snooze length</strong>
+            <small>Quiet time after "Remind me later".</small>
+          </span>
+          <select id="snoozeMinutes">
+            <option value="2">2 minutes</option>
+            <option value="5">5 minutes</option>
+            <option value="10">10 minutes</option>
+            <option value="15">15 minutes</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>
+            <strong>Cooldown</strong>
+            <small>Quiet time after "Continue", so nudges never nag.</small>
+          </span>
+          <select id="cooldownSeconds">
+            <option value="60">1 minute</option>
+            <option value="180">3 minutes</option>
+            <option value="300">5 minutes</option>
+            <option value="600">10 minutes</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>
+            <strong>Strict mode</strong>
+            <small>Interrupt sooner and stay quiet for less time.</small>
+          </span>
+          <input type="checkbox" id="strictMode" />
+        </label>
+
+        <label class="row">
+          <span>
+            <strong>Adaptive threshold</strong>
+            <small>Nudge earlier on days when nudges keep getting ignored.</small>
+          </span>
+          <input type="checkbox" id="adaptiveThreshold" />
+        </label>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Sites</h2>
+        <div id="siteToggles" class="site-toggles"></div>
+      </section>
+
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="save">Save settings</button>
+        <button type="button" class="btn btn-ghost" id="reset">Reset statistics</button>
+        <span class="status" id="status" role="status"></span>
+      </div>
+    </main>
+
+    <script src="../shared/constants.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>
