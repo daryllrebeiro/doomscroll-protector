@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Mindful Scroll – Smart Doomscroll Interrupter",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Detects endless scrolling on addictive sites and gently interrupts with a mindful nudge. Not a blocker.",
   "minimum_chrome_version": "102",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "alarms"],
   "host_permissions": [
     "https://twitter.com/*",
     "https://x.com/*",
@@ -42,7 +42,16 @@
         "https://*.youtube.com/*",
         "https://*.instagram.com/*"
       ],
-      "js": ["src/shared/constants.js", "src/content/contentScript.js"],
+      "js": [
+        "src/shared/constants.js",
+        "src/content/sites/index.js",
+        "src/content/sites/twitter.js",
+        "src/content/sites/reddit.js",
+        "src/content/sites/youtube.js",
+        "src/content/sites/instagram.js",
+        "src/content/detector.js",
+        "src/content/contentScript.js"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }

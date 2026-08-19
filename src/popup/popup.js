@@ -1,5 +1,6 @@
 /** Popup dashboard: today's scrolling, nudges and how many were ignored. */
-const { MESSAGES, SITES, formatDuration } = window.MindfulScroll;
+const { MESSAGES, SITES, dateKey, normaliseDay, ignoredCount, formatDuration } =
+  window.MindfulScroll;
 
 const els = {
   enabled: document.getElementById('enabled'),
@@ -7,6 +8,7 @@ const els = {
   interruptions: document.getElementById('interruptions'),
   ignored: document.getElementById('ignored'),
   summary: document.getElementById('summary'),
+  trend: document.getElementById('trend'),
   siteList: document.getElementById('siteList'),
   openOptions: document.getElementById('openOptions')
 };
@@ -43,11 +45,55 @@ function renderSites(perSite) {
   }
 }
 
+/** Seven CSS bars, scaled to the busiest day, so a trend is visible at a glance. */
+function renderTrend(stats) {
+  els.trend.replaceChildren();
+  const days = [];
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const date = new Date();
+    date.setDate(date.getDate() - offset);
+    const key = dateKey(date);
+    days.push({
+      key,
+      label: date.toLocaleDateString(undefined, { weekday: 'narrow' }),
+      seconds: normaliseDay(stats[key]).scrollSeconds
+    });
+  }
+  const max = Math.max(...days.map((day) => day.seconds), 1);
+
+  for (const day of days) {
+    const item = document.createElement('li');
+    item.className = 'trend-day';
+    item.title = `${day.key}: ${formatDuration(day.seconds)}`;
+
+    const bar = document.createElement('span');
+    bar.className = 'trend-bar';
+    bar.style.height = `${Math.max(2, Math.round((day.seconds / max) * 36))}px`;
+
+    const label = document.createElement('span');
+    label.className = 'trend-label';
+    label.textContent = day.label;
+
+    item.append(bar, label);
+    els.trend.append(item);
+  }
+}
+
+function renderError() {
+  els.summary.textContent = 'Could not load stats — try reopening the popup.';
+  els.scrollTime.textContent = '–';
+  els.interruptions.textContent = '–';
+  els.ignored.textContent = '–';
+}
+
 async function render() {
   const response = await send(MESSAGES.GET_STATS);
-  if (!response) return;
-  const { today, settings } = response;
-  const ignored = (today.actions.continue || 0) + (today.actions.ignored || 0);
+  if (!response || !response.today) {
+    renderError();
+    return;
+  }
+  const { today, stats, settings } = response;
+  const ignored = ignoredCount(today);
 
   els.enabled.checked = Boolean(settings.enabled);
   els.scrollTime.textContent = formatDuration(today.scrollSeconds);
@@ -58,6 +104,7 @@ async function render() {
       ? 'No interruptions yet today.'
       : `You ignored ${ignored} of ${today.interruptions} interruption${today.interruptions === 1 ? '' : 's'}, and took ${today.actions.break || 0} break${(today.actions.break || 0) === 1 ? '' : 's'}.`;
 
+  renderTrend(stats || {});
   renderSites(today.perSite || {});
 }
 
@@ -67,4 +114,4 @@ els.enabled.addEventListener('change', async () => {
 
 els.openOptions.addEventListener('click', () => chrome.runtime.openOptionsPage());
 
-render();
+render().catch(renderError);

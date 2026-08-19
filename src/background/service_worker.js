@@ -2,32 +2,59 @@
  * Mindful Scroll – background service worker (Manifest V3).
  *
  * Responsibilities:
- *  - own the persisted settings + aggregated daily stats in chrome.storage.local
- *  - aggregate scroll/interruption events coming from content scripts
- *  - serve settings and stats to the popup / options page
- *  - keep lightweight per-tab session state (in memory only; MV3 workers die)
+ *  - own settings + aggregated daily stats in chrome.storage.local, with migrations
+ *  - batch writes: content scripts report seconds, we buffer them and commit on an
+ *    alarm, so open feed tabs cannot approach the storage write quota
+ *  - hold per-tab runtime state (cooldown, break, nudge history) in
+ *    chrome.storage.session, which survives worker suspension but not a restart
+ *
+ * MV3 workers are killed aggressively, so nothing that matters may live only in
+ * a module-level variable: buffers are flushed on `onSuspend` and every alarm.
  */
-importScripts('/src/shared/constants.js');
+importScripts('/src/shared/constants.js', '/src/shared/migrations.js');
 
 const {
   STORAGE_KEYS,
   MESSAGES,
+  HISTORY_DAYS,
   dateKey,
   withDefaults,
-  emptyDay
+  emptyDay,
+  normaliseDay,
+  ignoredCount,
+  migrations
 } = self.MindfulScroll;
 
-/** Days of history to keep; older buckets are pruned on write. */
-const HISTORY_DAYS = 14;
+/** Commit buffered stats at most once a minute (alarms cannot fire faster). */
+const FLUSH_ALARM = 'mindful-scroll-flush';
+const FLUSH_PERIOD_MINUTES = 1;
 
-/** tabId -> { site, startedAt, scrollSeconds, interruptions } */
-const sessions = new Map();
+/**
+ * Commit early once this much unsaved scrolling has piled up. `onSuspend` is
+ * not guaranteed to finish an async write, so the buffer must never hold more
+ * than a couple of minutes of data across all tabs.
+ */
+const MAX_BUFFERED_SECONDS = 120;
+
+/**
+ * date -> pending increments, buffered between commits.
+ * @type {Map<string, { scrollSeconds: number, interruptions: number, actions: object, perSite: object }>}
+ */
+const buffer = new Map();
 
 /* ---------------------------------------------------------------- storage */
 
+async function readAll() {
+  const stored = await chrome.storage.local.get([STORAGE_KEYS.settings, STORAGE_KEYS.stats]);
+  return {
+    settings: stored[STORAGE_KEYS.settings],
+    stats: stored[STORAGE_KEYS.stats] || {}
+  };
+}
+
 async function getSettings() {
-  const stored = await chrome.storage.local.get(STORAGE_KEYS.settings);
-  return withDefaults(stored[STORAGE_KEYS.settings]);
+  const { settings } = await readAll();
+  return withDefaults(settings);
 }
 
 async function saveSettings(partial) {
@@ -37,34 +64,81 @@ async function saveSettings(partial) {
 }
 
 async function getStats() {
-  const stored = await chrome.storage.local.get(STORAGE_KEYS.stats);
-  return stored[STORAGE_KEYS.stats] || {};
+  const { stats } = await readAll();
+  return stats;
+}
+
+/** Run pending migrations once, at install/update and defensively at startup. */
+async function runMigrations() {
+  const { settings, stats } = await readAll();
+  const result = migrations.migrate(settings, stats);
+  if (!result.changed && settings) return;
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.settings]: result.settings,
+    [STORAGE_KEYS.stats]: result.stats
+  });
+}
+
+/* ------------------------------------------------------ buffered stat writes */
+
+function bufferFor(date) {
+  if (!buffer.has(date)) {
+    buffer.set(date, {
+      scrollSeconds: 0,
+      interruptions: 0,
+      actions: {},
+      perSite: {}
+    });
+  }
+  return buffer.get(date);
+}
+
+function bufferSite(entry, site) {
+  if (!entry.perSite[site]) {
+    entry.perSite[site] = { scrollSeconds: 0, interruptions: 0, ignored: 0 };
+  }
+  return entry.perSite[site];
 }
 
 /**
- * Read-modify-write of today's stats bucket. Serialised through a promise
- * chain because several tabs can report events at the same time.
+ * Commit the buffer into storage. Serialised through a promise chain, and the
+ * buffer is drained *before* the read so a concurrent report is never lost:
+ * anything arriving mid-commit lands in a fresh buffer entry and is written by
+ * the next flush.
  */
-let writeQueue = Promise.resolve();
-function updateToday(mutate) {
-  writeQueue = writeQueue.then(async () => {
+let commitQueue = Promise.resolve();
+function commit() {
+  if (buffer.size === 0) return commitQueue;
+
+  const drained = new Map(buffer);
+  buffer.clear();
+
+  commitQueue = commitQueue.then(async () => {
     const stats = await getStats();
-    const key = dateKey();
-    const day = { ...emptyDay(), ...(stats[key] || {}) };
-    day.actions = { ...emptyDay().actions, ...(day.actions || {}) };
-    day.perSite = { ...(day.perSite || {}) };
-
-    mutate(day);
-
-    stats[key] = day;
+    for (const [date, delta] of drained) {
+      const day = normaliseDay(stats[date]);
+      day.scrollSeconds += delta.scrollSeconds;
+      day.interruptions += delta.interruptions;
+      for (const [action, count] of Object.entries(delta.actions)) {
+        day.actions[action] = (day.actions[action] || 0) + count;
+      }
+      for (const [site, siteDelta] of Object.entries(delta.perSite)) {
+        const bucket = day.perSite[site] || { scrollSeconds: 0, interruptions: 0, ignored: 0 };
+        bucket.scrollSeconds += siteDelta.scrollSeconds;
+        bucket.interruptions += siteDelta.interruptions;
+        bucket.ignored += siteDelta.ignored;
+        day.perSite[site] = bucket;
+      }
+      stats[date] = day;
+    }
     prune(stats);
     await chrome.storage.local.set({ [STORAGE_KEYS.stats]: stats });
-    return day;
   });
-  return writeQueue;
+
+  return commitQueue;
 }
 
-/** Drop buckets older than HISTORY_DAYS (daily reset comes for free from keys). */
+/** Drop buckets older than HISTORY_DAYS; the daily reset falls out of the keys. */
 function prune(stats) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - HISTORY_DAYS);
@@ -74,22 +148,58 @@ function prune(stats) {
   }
 }
 
-function siteBucket(day, site) {
-  if (!day.perSite[site]) {
-    day.perSite[site] = { scrollSeconds: 0, interruptions: 0, ignored: 0 };
+/** Stats as the UI should see them: committed storage plus the live buffer. */
+async function statsWithBuffer() {
+  const stats = await getStats();
+  const merged = {};
+  for (const [date, day] of Object.entries(stats)) merged[date] = normaliseDay(day);
+  for (const [date, delta] of buffer) {
+    const day = merged[date] || emptyDay();
+    day.scrollSeconds += delta.scrollSeconds;
+    day.interruptions += delta.interruptions;
+    for (const [action, count] of Object.entries(delta.actions)) {
+      day.actions[action] = (day.actions[action] || 0) + count;
+    }
+    for (const [site, siteDelta] of Object.entries(delta.perSite)) {
+      const bucket = day.perSite[site] || { scrollSeconds: 0, interruptions: 0, ignored: 0 };
+      bucket.scrollSeconds += siteDelta.scrollSeconds;
+      bucket.interruptions += siteDelta.interruptions;
+      bucket.ignored += siteDelta.ignored;
+      day.perSite[site] = bucket;
+    }
+    merged[date] = day;
   }
-  return day.perSite[site];
+  return merged;
 }
 
-/* --------------------------------------------------------------- sessions */
+/* ------------------------------------------------- per-tab runtime + sessions */
 
-function session(tabId, site) {
-  let s = sessions.get(tabId);
-  if (!s || s.site !== site) {
-    s = { site, startedAt: Date.now(), scrollSeconds: 0, interruptions: 0 };
-    sessions.set(tabId, s);
-  }
-  return s;
+const runtimeKey = (tabId, site) => `runtime:${tabId}:${site}`;
+const sessionKey = (tabId) => `session:${tabId}`;
+
+async function readRuntime(tabId, site) {
+  if (typeof tabId !== 'number') return {};
+  const key = runtimeKey(tabId, site);
+  const stored = await chrome.storage.session.get(key);
+  return stored[key] || {};
+}
+
+async function writeRuntime(tabId, site, runtime) {
+  if (typeof tabId !== 'number') return;
+  await chrome.storage.session.set({ [runtimeKey(tabId, site)]: runtime });
+}
+
+/** Per-tab session counters, in storage.session so a worker restart keeps them. */
+async function updateSession(tabId, site, mutate) {
+  if (typeof tabId !== 'number') return;
+  const key = sessionKey(tabId);
+  const stored = await chrome.storage.session.get(key);
+  const session =
+    stored[key] && stored[key].site === site
+      ? stored[key]
+      : { site, startedAt: Date.now(), scrollSeconds: 0, interruptions: 0 };
+  mutate(session);
+  await chrome.storage.session.set({ [key]: session });
 }
 
 /* --------------------------------------------------------------- messages */
@@ -104,41 +214,85 @@ const handlers = {
   },
 
   async [MESSAGES.GET_STATS]() {
-    const stats = await getStats();
-    const today = { ...emptyDay(), ...(stats[dateKey()] || {}) };
-    return { today, stats, settings: await getSettings() };
+    const stats = await statsWithBuffer();
+    const today = normaliseDay(stats[dateKey()]);
+    return { today, stats, settings: await getSettings(), ignoredToday: ignoredCount(today) };
   },
 
-  async [MESSAGES.RESET_STATS]() {
-    await chrome.storage.local.set({ [STORAGE_KEYS.stats]: {} });
-    sessions.clear();
+  /** Everything a freshly injected content script needs, in one round-trip. */
+  async [MESSAGES.GET_CONTEXT](payload, sender) {
+    const tabId = sender.tab && sender.tab.id;
+    const stats = await statsWithBuffer();
+    return {
+      settings: await getSettings(),
+      ignoredToday: ignoredCount(stats[dateKey()]),
+      runtime: await readRuntime(tabId, payload.site)
+    };
+  },
+
+  async [MESSAGES.SET_RUNTIME](payload, sender) {
+    await writeRuntime(sender.tab && sender.tab.id, payload.site, payload.runtime || {});
     return { ok: true };
   },
 
-  /** Content script reports N seconds of active scrolling. */
-  async [MESSAGES.SCROLL_TICK](payload, sender) {
-    const seconds = Math.max(0, Math.min(60, Number(payload.seconds) || 0));
-    const site = payload.site;
-    if (!seconds || !site) return { ok: false };
+  async [MESSAGES.RESET_STATS]() {
+    buffer.clear();
+    await chrome.storage.local.set({ [STORAGE_KEYS.stats]: {} });
+    return { ok: true };
+  },
 
-    if (sender.tab && typeof sender.tab.id === 'number') {
-      session(sender.tab.id, site).scrollSeconds += seconds;
+  async [MESSAGES.EXPORT_DATA]() {
+    return {
+      exportedAt: new Date().toISOString(),
+      settings: await getSettings(),
+      stats: await statsWithBuffer()
+    };
+  },
+
+  async [MESSAGES.DELETE_ALL_DATA]() {
+    buffer.clear();
+    await chrome.storage.local.clear();
+    await chrome.storage.session.clear();
+    await saveSettings({});
+    return { ok: true };
+  },
+
+  /**
+   * Seconds of active scrolling, already attributed to the day they accrued in
+   * by the content script (so a run spanning midnight splits correctly).
+   */
+  async [MESSAGES.SCROLL_TICK](payload, sender) {
+    const site = payload.site;
+    const entries = Array.isArray(payload.entries) ? payload.entries : [];
+    if (!site || entries.length === 0) return { ok: false };
+
+    let total = 0;
+    for (const entry of entries) {
+      const seconds = Math.max(0, Math.min(3600, Number(entry.seconds) || 0));
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(entry.date) ? entry.date : dateKey();
+      if (!seconds) continue;
+      const bucket = bufferFor(date);
+      bucket.scrollSeconds += seconds;
+      bufferSite(bucket, site).scrollSeconds += seconds;
+      total += seconds;
     }
-    await updateToday((day) => {
-      day.scrollSeconds += seconds;
-      siteBucket(day, site).scrollSeconds += seconds;
+    await updateSession(sender.tab && sender.tab.id, site, (session) => {
+      session.scrollSeconds += total;
     });
+
+    let buffered = 0;
+    for (const entry of buffer.values()) buffered += entry.scrollSeconds;
+    if (buffered >= MAX_BUFFERED_SECONDS) commit();
+
     return { ok: true };
   },
 
   async [MESSAGES.INTERRUPTION_SHOWN](payload, sender) {
-    const site = payload.site;
-    if (sender.tab && typeof sender.tab.id === 'number') {
-      session(sender.tab.id, site).interruptions += 1;
-    }
-    await updateToday((day) => {
-      day.interruptions += 1;
-      siteBucket(day, site).interruptions += 1;
+    const bucket = bufferFor(dateKey());
+    bucket.interruptions += 1;
+    bufferSite(bucket, payload.site).interruptions += 1;
+    await updateSession(sender.tab && sender.tab.id, payload.site, (session) => {
+      session.interruptions += 1;
     });
     return { ok: true };
   },
@@ -147,15 +301,18 @@ const handlers = {
   async [MESSAGES.INTERRUPTION_ACTION](payload) {
     const { site, action } = payload;
     if (!action) return { ok: false };
-    const day = await updateToday((d) => {
-      d.actions[action] = (d.actions[action] || 0) + 1;
-      // "Continue" and timeouts both mean the nudge did not change behaviour.
-      if (action === 'continue' || action === 'ignored') {
-        siteBucket(d, site).ignored += 1;
-      }
-    });
-    // Content scripts use the ignored count to adapt their threshold.
-    return { ok: true, ignoredToday: day.actions.continue + day.actions.ignored };
+
+    const bucket = bufferFor(dateKey());
+    bucket.actions[action] = (bucket.actions[action] || 0) + 1;
+    if (action === 'continue' || action === 'ignored') {
+      bufferSite(bucket, site).ignored += 1;
+    }
+
+    // Commit immediately: the adaptive threshold reads this back, and an
+    // interruption is rare enough that a write per action is cheap.
+    await commit();
+    const stats = await statsWithBuffer();
+    return { ok: true, ignoredToday: ignoredCount(stats[dateKey()]) };
   }
 };
 
@@ -168,9 +325,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true; // keep the message channel open for the async response
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => sessions.delete(tabId));
+/* -------------------------------------------------------------- lifecycle */
+
+chrome.alarms.create(FLUSH_ALARM, { periodInMinutes: FLUSH_PERIOD_MINUTES });
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === FLUSH_ALARM) commit();
+});
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  await commit();
+  const all = await chrome.storage.session.get(null);
+  const keys = Object.keys(all).filter(
+    (key) => key === sessionKey(tabId) || key.startsWith(`runtime:${tabId}:`)
+  );
+  if (keys.length) await chrome.storage.session.remove(keys);
+});
 
 chrome.runtime.onInstalled.addListener(async () => {
-  // Materialise defaults so the options page has something concrete to show.
-  await saveSettings({});
+  await runMigrations();
+  chrome.alarms.create(FLUSH_ALARM, { periodInMinutes: FLUSH_PERIOD_MINUTES });
 });
+
+chrome.runtime.onStartup.addListener(() => runMigrations());
+
+// Last chance to persist before the worker is torn down.
+chrome.runtime.onSuspend.addListener(() => commit());

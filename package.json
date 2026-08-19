@@ -1,0 +1,24 @@
+{
+  "name": "mindful-scroll",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Chrome extension that gently interrupts doomscrolling. Dev tooling only — the extension itself ships with zero runtime dependencies.",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:manifest": "node tools/check-manifest.mjs",
+    "package": "node tools/package.mjs",
+    "verify": "npm run lint && npm run format:check && npm run check:manifest && npm run test"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.13.0",
+    "eslint": "9.13.0",
+    "globals": "15.11.0",
+    "prettier": "3.3.3",
+    "vitest": "2.1.3"
+  }
+}
