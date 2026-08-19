@@ -57,7 +57,9 @@
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
 }
 
 .ms-btn-primary {
@@ -92,6 +94,17 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-card,
+  .ms-break {
+    animation: none;
+  }
+
+  .ms-btn {
+    transition: none;
   }
 }
 

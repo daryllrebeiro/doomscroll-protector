@@ -6,6 +6,12 @@
  * syntax. Everything is exposed on `globalThis.MindfulScroll`.
  */
 (function attachShared(global) {
+  /**
+   * Bump when the persisted shape of `settings` or `stats` changes, and add a
+   * matching step in src/shared/migrations.js.
+   */
+  const SCHEMA_VERSION = 1;
+
   /** Supported sites. `hosts` are matched as hostname suffixes. */
   const SITES = [
     { id: 'twitter', label: 'Twitter / X', hosts: ['twitter.com', 'x.com'] },
@@ -15,6 +21,7 @@
   ];
 
   const DEFAULT_SETTINGS = {
+    schemaVersion: SCHEMA_VERSION,
     enabled: true,
     /** Seconds of *active scrolling* before an interruption is considered. */
     scrollThresholdSeconds: 120,
@@ -22,6 +29,11 @@
     snoozeMinutes: 5,
     /** Seconds to stay quiet after "Continue". */
     cooldownSeconds: 180,
+    /** Length of the blurred break after "Take a break". */
+    breakSeconds: 60,
+    /** Hard caps so no configuration can produce a nagging loop. */
+    maxInterruptionsPerHour: 4,
+    minSecondsBetweenInterruptions: 60,
     /** Strict mode: interrupts sooner and stays quiet for less time. */
     strictMode: false,
     /** Adaptive threshold: interrupt sooner when nudges keep getting ignored. */
@@ -40,6 +52,12 @@
     SAVE_SETTINGS: 'SAVE_SETTINGS',
     GET_STATS: 'GET_STATS',
     RESET_STATS: 'RESET_STATS',
+    EXPORT_DATA: 'EXPORT_DATA',
+    DELETE_ALL_DATA: 'DELETE_ALL_DATA',
+    /** One round-trip on injection: settings + ignored count + runtime state. */
+    GET_CONTEXT: 'GET_CONTEXT',
+    /** Persist per-tab runtime state (cooldown, break, nudge history). */
+    SET_RUNTIME: 'SET_RUNTIME',
     SCROLL_TICK: 'SCROLL_TICK',
     INTERRUPTION_SHOWN: 'INTERRUPTION_SHOWN',
     INTERRUPTION_ACTION: 'INTERRUPTION_ACTION'
@@ -56,27 +74,53 @@
   const ADAPTIVE_STEP = 0.85;
   const ADAPTIVE_MIN_FACTOR = 0.5;
 
+  /** Never nudge below this, whatever strict/adaptive multipliers work out to. */
+  const MIN_THRESHOLD_SECONDS = 20;
+
+  /** Days of daily history to keep; older buckets are pruned on write. */
+  const HISTORY_DAYS = 14;
+
   /** Local date key (YYYY-MM-DD) used to bucket stats, so days reset naturally. */
   function dateKey(date = new Date()) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
+    const value = date instanceof Date ? date : new Date(date);
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
 
   /** Resolve a hostname to a supported site id, or null. */
   function siteIdForHost(hostname) {
-    const host = String(hostname || '').toLowerCase();
-    const site = SITES.find((s) =>
-      s.hosts.some((h) => host === h || host.endsWith(`.${h}`))
-    );
+    const host = String(hostname || '')
+      .toLowerCase()
+      .replace(/\.$/, '');
+    const site = SITES.find((s) => s.hosts.some((h) => host === h || host.endsWith(`.${h}`)));
     return site ? site.id : null;
   }
 
   /** Merge stored settings over defaults (one nested level for `sites`). */
   function withDefaults(stored) {
-    const merged = { ...DEFAULT_SETTINGS, ...(stored || {}) };
-    merged.sites = { ...DEFAULT_SETTINGS.sites, ...((stored && stored.sites) || {}) };
+    const source = stored && typeof stored === 'object' ? stored : {};
+    const merged = { ...DEFAULT_SETTINGS, ...source };
+
+    // Numeric fields can arrive as strings from <select>, or as garbage from a
+    // hand-edited storage entry; coerce and fall back to the default.
+    for (const [key, fallback] of Object.entries(DEFAULT_SETTINGS)) {
+      if (typeof fallback !== 'number') continue;
+      const value = Number(merged[key]);
+      merged[key] = Number.isFinite(value) && value > 0 ? value : fallback;
+    }
+    for (const [key, fallback] of Object.entries(DEFAULT_SETTINGS)) {
+      if (typeof fallback !== 'boolean') continue;
+      merged[key] = Boolean(merged[key]);
+    }
+
+    const sites = source.sites && typeof source.sites === 'object' ? source.sites : {};
+    merged.sites = { ...DEFAULT_SETTINGS.sites };
+    for (const site of SITES) {
+      if (site.id in sites) merged.sites[site.id] = sites[site.id] !== false;
+    }
+    merged.schemaVersion = SCHEMA_VERSION;
     return merged;
   }
 
@@ -90,9 +134,27 @@
     };
   }
 
+  /** Normalise a possibly-partial stored day bucket into a complete one. */
+  function normaliseDay(day) {
+    const base = emptyDay();
+    const source = day && typeof day === 'object' ? day : {};
+    return {
+      scrollSeconds: Number(source.scrollSeconds) || 0,
+      interruptions: Number(source.interruptions) || 0,
+      actions: { ...base.actions, ...(source.actions || {}) },
+      perSite: { ...(source.perSite || {}) }
+    };
+  }
+
+  /** Nudges that changed nothing: explicit "Continue" plus auto-dismissals. */
+  function ignoredCount(day) {
+    const actions = normaliseDay(day).actions;
+    return (actions.continue || 0) + (actions.ignored || 0);
+  }
+
   /** "1h 04m" / "4m 20s" / "35s" */
   function formatDuration(totalSeconds) {
-    const seconds = Math.max(0, Math.round(totalSeconds));
+    const seconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
@@ -101,7 +163,32 @@
     return `${s}s`;
   }
 
+  /**
+   * Effective threshold in seconds.
+   * Strict mode shortens it; the adaptive heuristic shortens it further for each
+   * nudge ignored today, floored so it can never become a nag.
+   */
+  function thresholdSeconds(settings, ignoredToday = 0) {
+    const config = withDefaults(settings);
+    let seconds = config.scrollThresholdSeconds;
+    if (config.strictMode) seconds *= STRICT_THRESHOLD_FACTOR;
+    if (config.adaptiveThreshold && ignoredToday > 0) {
+      seconds *= Math.max(ADAPTIVE_MIN_FACTOR, Math.pow(ADAPTIVE_STEP, ignoredToday));
+    }
+    return Math.max(MIN_THRESHOLD_SECONDS, Math.round(seconds));
+  }
+
+  /** Quiet period (ms) applied after each overlay action. */
+  function quietMsForAction(settings, action) {
+    const config = withDefaults(settings);
+    const factor = config.strictMode ? STRICT_QUIET_FACTOR : 1;
+    if (action === 'snooze') return config.snoozeMinutes * 60000 * factor;
+    if (action === 'break') return (config.breakSeconds + config.cooldownSeconds) * 1000 * factor;
+    return config.cooldownSeconds * 1000 * factor;
+  }
+
   global.MindfulScroll = {
+    SCHEMA_VERSION,
     SITES,
     DEFAULT_SETTINGS,
     STORAGE_KEYS,
@@ -111,10 +198,16 @@
     STRICT_QUIET_FACTOR,
     ADAPTIVE_STEP,
     ADAPTIVE_MIN_FACTOR,
+    MIN_THRESHOLD_SECONDS,
+    HISTORY_DAYS,
     dateKey,
     siteIdForHost,
     withDefaults,
     emptyDay,
-    formatDuration
+    normaliseDay,
+    ignoredCount,
+    formatDuration,
+    thresholdSeconds,
+    quietMsForAction
   };
 })(typeof self !== 'undefined' ? self : globalThis);

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -64,6 +64,31 @@
 
         <label class="row">
           <span>
+            <strong>Break length</strong>
+            <small>How long the feed stays blurred after "Take a break".</small>
+          </span>
+          <select id="breakSeconds">
+            <option value="30">30 seconds</option>
+            <option value="60">1 minute</option>
+            <option value="300">5 minutes</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>
+            <strong>Maximum nudges per hour</strong>
+            <small>Hard cap; nudges are never closer than a minute apart.</small>
+          </span>
+          <select id="maxInterruptionsPerHour">
+            <option value="2">2</option>
+            <option value="4">4</option>
+            <option value="6">6</option>
+            <option value="12">12</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>
             <strong>Strict mode</strong>
             <small>Interrupt sooner and stay quiet for less time.</small>
           </span>
@@ -86,7 +111,9 @@
 
       <div class="actions">
         <button type="button" class="btn btn-primary" id="save">Save settings</button>
+        <button type="button" class="btn btn-ghost" id="export">Export data</button>
         <button type="button" class="btn btn-ghost" id="reset">Reset statistics</button>
+        <button type="button" class="btn btn-ghost" id="deleteAll">Delete all data</button>
         <span class="status" id="status" role="status"></span>
       </div>
     </main>

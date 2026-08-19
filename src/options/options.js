@@ -3,10 +3,16 @@ const { MESSAGES, SITES } = window.MindfulScroll;
 
 const send = (type, payload = {}) => chrome.runtime.sendMessage({ type, payload });
 
-const NUMERIC_FIELDS = ['scrollThresholdSeconds', 'snoozeMinutes', 'cooldownSeconds'];
+const NUMERIC_FIELDS = [
+  'scrollThresholdSeconds',
+  'snoozeMinutes',
+  'cooldownSeconds',
+  'breakSeconds',
+  'maxInterruptionsPerHour'
+];
 const BOOLEAN_FIELDS = ['enabled', 'strictMode', 'adaptiveThreshold'];
 
-const status = document.getElementById('status');
+const statusEl = document.getElementById('status');
 const siteToggles = document.getElementById('siteToggles');
 
 function renderSiteToggles(settings) {
@@ -57,9 +63,9 @@ function apply(settings) {
 }
 
 function flash(message) {
-  status.textContent = message;
+  statusEl.textContent = message;
   setTimeout(() => {
-    status.textContent = '';
+    statusEl.textContent = '';
   }, 2000);
 }
 
@@ -72,6 +78,30 @@ document.getElementById('save').addEventListener('click', async () => {
 document.getElementById('reset').addEventListener('click', async () => {
   await send(MESSAGES.RESET_STATS);
   flash('Statistics cleared.');
+});
+
+/** Everything the extension knows about you, as a file you can inspect. */
+document.getElementById('export').addEventListener('click', async () => {
+  const data = await send(MESSAGES.EXPORT_DATA);
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  );
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `mindful-scroll-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  flash('Data exported.');
+});
+
+document.getElementById('deleteAll').addEventListener('click', async () => {
+  if (!confirm('Delete all Mindful Scroll settings and statistics? This cannot be undone.')) return;
+  const response = await send(MESSAGES.DELETE_ALL_DATA);
+  if (response && response.ok) {
+    const fresh = await send(MESSAGES.GET_SETTINGS);
+    if (fresh && fresh.settings) apply(fresh.settings);
+  }
+  flash('All data deleted.');
 });
 
 send(MESSAGES.GET_SETTINGS).then((response) => {

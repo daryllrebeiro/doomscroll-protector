@@ -1,83 +1,49 @@
 /**
  * Mindful Scroll – content script.
  *
- * Runs in the page context on supported sites and:
- *  - measures *active* scrolling time (cheap: the scroll handler only stores a
- *    timestamp; all evaluation happens in a 1s interval tick)
- *  - resets the accumulator on meaningful interaction or navigation
- *  - shows the interruption overlay (in a shadow root, so page CSS can't leak in)
- *  - reports events to the background service worker
+ * Thin shell around the pure detector: it turns page events into detector
+ * signals, renders the overlay, and talks to the service worker. All heuristic
+ * decisions live in detector.js; all site quirks live in sites/*.js.
  */
 (() => {
   const {
     MESSAGES,
     STORAGE_KEYS,
-    STRICT_THRESHOLD_FACTOR,
-    STRICT_QUIET_FACTOR,
-    ADAPTIVE_STEP,
-    ADAPTIVE_MIN_FACTOR,
     siteIdForHost,
     withDefaults,
-    formatDuration
+    formatDuration,
+    createDetector,
+    sites: { adapterFor, isComposing }
   } = window.MindfulScroll;
 
   const SITE = siteIdForHost(location.hostname);
   if (!SITE) return;
 
-  /** Max gap between scroll events that still counts as "continuous". */
-  const IDLE_GAP_MS = 2000;
-  /** Evaluation cadence. Scroll handler stays trivial; this does the work. */
+  const adapter = adapterFor(SITE);
+
+  /** Evaluation cadence. Event handlers stay trivial; this does the work. */
   const TICK_MS = 1000;
-  /** Seconds of accumulated scrolling reported to the background at a time. */
-  const REPORT_EVERY_SECONDS = 10;
+  /** Only flush accumulated seconds this often, to keep storage writes rare. */
+  const FLUSH_EVERY_SECONDS = 60;
   /** Auto-dismiss the overlay if the user never answers (counts as ignored). */
   const OVERLAY_TIMEOUT_MS = 30000;
-  /** How long "Take a break" blurs the feed. */
-  const BREAK_MS = 60000;
+  /** Keys that advance a virtualised feed (Shorts/Reels) without scrolling. */
+  const ADVANCE_KEYS = new Set([
+    ' ',
+    'Spacebar',
+    'ArrowDown',
+    'ArrowUp',
+    'PageDown',
+    'PageUp',
+    'j',
+    'k'
+  ]);
 
-  const state = {
-    settings: withDefaults(null),
-    /** Seconds of continuous scrolling since the last reset. */
-    activeSeconds: 0,
-    /** Seconds not yet reported to the background. */
-    unreportedSeconds: 0,
-    lastScrollAt: 0,
-    lastScrollY: window.scrollY,
-    /** Timestamp until which we stay quiet (cooldown / snooze / break). */
-    quietUntil: 0,
-    overlayOpen: false,
-    ignoredToday: 0,
-    lastUrl: location.href,
-    tickTimer: null
-  };
-
-  /* -------------------------------------------------------- configuration */
-
-  function siteEnabled() {
-    return state.settings.enabled && state.settings.sites[SITE] !== false;
-  }
-
-  /**
-   * Effective threshold in seconds.
-   * Strict mode shortens it; the adaptive heuristic shortens it further each
-   * time a nudge is ignored today (floored at ADAPTIVE_MIN_FACTOR).
-   */
-  function thresholdSeconds() {
-    let seconds = Number(state.settings.scrollThresholdSeconds) || 120;
-    if (state.settings.strictMode) seconds *= STRICT_THRESHOLD_FACTOR;
-    if (state.settings.adaptiveThreshold && state.ignoredToday > 0) {
-      const factor = Math.max(
-        ADAPTIVE_MIN_FACTOR,
-        Math.pow(ADAPTIVE_STEP, state.ignoredToday)
-      );
-      seconds *= factor;
-    }
-    return Math.max(20, Math.round(seconds));
-  }
-
-  function quietFactor() {
-    return state.settings.strictMode ? STRICT_QUIET_FACTOR : 1;
-  }
+  let settings = withDefaults(null);
+  let detector = null;
+  let overlayOpen = false;
+  let breakUntil = 0;
+  let lastUrl = location.href;
 
   /* ------------------------------------------------------------ messaging */
 
@@ -89,80 +55,80 @@
     }
   }
 
-  async function loadSettings() {
-    const response = await send(MESSAGES.GET_SETTINGS);
-    if (response && response.settings) state.settings = response.settings;
+  /** Persist cooldown, break and nudge history so a reload cannot escape them. */
+  function persistRuntime() {
+    if (!detector) return;
+    send(MESSAGES.SET_RUNTIME, { runtime: { ...detector.snapshot(), breakUntil } });
   }
 
-  async function loadIgnoredCount() {
-    const response = await send(MESSAGES.GET_STATS);
-    if (response && response.today) {
-      const actions = response.today.actions || {};
-      state.ignoredToday = (actions.continue || 0) + (actions.ignored || 0);
+  function flush(force = false) {
+    if (!detector) return;
+    const entries = detector.takePending(force ? 0 : FLUSH_EVERY_SECONDS);
+    if (entries.length) send(MESSAGES.SCROLL_TICK, { entries });
+  }
+
+  /* ---------------------------------------------------------- page events */
+
+  const siteEnabled = () => settings.enabled && settings.sites[SITE] !== false;
+
+  /** Cheap by design: the detector only records a timestamp. */
+  function onActivity() {
+    if (detector) detector.registerActivity();
+  }
+
+  function insideOverlay(target) {
+    return Boolean(
+      (overlayHost && overlayHost.contains(target)) || (breakHost && breakHost.contains(target))
+    );
+  }
+
+  function onInteraction(event) {
+    if (event && insideOverlay(event.target)) return;
+    if (detector) detector.registerInteraction();
+  }
+
+  function onKeyDown(event) {
+    if (overlayOpen && event.key === 'Escape') {
+      event.preventDefault();
+      handleAction('snooze');
+      return;
     }
-  }
-
-  function flushScrollTime(force = false) {
-    if (state.unreportedSeconds >= REPORT_EVERY_SECONDS || (force && state.unreportedSeconds > 0)) {
-      const seconds = state.unreportedSeconds;
-      state.unreportedSeconds = 0;
-      send(MESSAGES.SCROLL_TICK, { seconds });
-    }
-  }
-
-  /* ------------------------------------------------------- scroll tracking */
-
-  function onScroll() {
-    // Intentionally trivial – no layout reads beyond scrollY, no DOM work.
-    state.lastScrollAt = Date.now();
-  }
-
-  function resetAccumulator(reason) {
-    if (state.activeSeconds > 0) flushScrollTime(true);
-    state.activeSeconds = 0;
-    state.lastScrollAt = 0;
-    void reason;
-  }
-
-  /** Meaningful interaction = the user is doing something, not just consuming. */
-  function onMeaningfulInteraction(event) {
-    if (state.overlayOpen && overlayHost && event && overlayHost.contains(event.target)) return;
-    resetAccumulator('interaction');
+    // Space/arrows in a feed are scrolling; anything else is real interaction.
+    if (ADVANCE_KEYS.has(event.key) && !isComposing()) onActivity();
+    else onInteraction(event);
   }
 
   function checkNavigation() {
-    if (location.href !== state.lastUrl) {
-      state.lastUrl = location.href;
-      resetAccumulator('navigation');
-    }
+    if (location.href === lastUrl) return;
+    lastUrl = location.href;
+    if (detector) detector.registerInteraction();
   }
 
+  /* ---------------------------------------------------------------- ticker */
+
   function tick() {
-    if (!siteEnabled() || document.hidden) {
-      if (document.hidden) resetAccumulator('hidden');
-      return;
-    }
+    if (!detector || !siteEnabled()) return;
     checkNavigation();
 
-    const scrolledRecently = Date.now() - state.lastScrollAt <= IDLE_GAP_MS;
-    if (!scrolledRecently) {
-      if (state.activeSeconds > 0 && Date.now() - state.lastScrollAt > IDLE_GAP_MS * 3) {
-        resetAccumulator('idle');
-      }
-      flushScrollTime();
-      return;
-    }
+    const result = detector.tick({
+      hidden: document.hidden,
+      feedSurface: adapter.isFeedSurface(),
+      suppressed: isSuppressed(),
+      overlayOpen
+    });
 
-    state.activeSeconds += TICK_MS / 1000;
-    state.unreportedSeconds += TICK_MS / 1000;
-    flushScrollTime();
+    flush();
+    if (result.shouldNudge) showOverlay(result.activeSeconds);
+  }
 
-    if (
-      !state.overlayOpen &&
-      Date.now() >= state.quietUntil &&
-      state.activeSeconds >= thresholdSeconds()
-    ) {
-      showOverlay(state.activeSeconds);
+  /** Moments where a nudge would be actively harmful to the experience. */
+  function isSuppressed() {
+    if (Date.now() < breakUntil) return true;
+    if (isComposing()) return true;
+    try {
+      return adapter.shouldSuppress();
+    } catch {
+      return false; // a site redesign must never break detection
     }
   }
 
@@ -170,6 +136,7 @@
 
   let overlayHost = null;
   let overlayTimeout = null;
+  let previouslyFocused = null;
 
   function buildOverlay(shadow, scrolledSeconds) {
     const link = document.createElement('link');
@@ -179,50 +146,77 @@
     const card = document.createElement('div');
     card.className = 'ms-card';
     card.setAttribute('role', 'dialog');
-    card.setAttribute('aria-live', 'polite');
-    card.setAttribute('aria-label', 'Mindful Scroll check-in');
+    // Not aria-modal: the page stays usable, this is a nudge and not a blocker.
+    card.setAttribute('aria-labelledby', 'ms-title');
+    card.setAttribute('aria-describedby', 'ms-subtitle');
 
     const title = document.createElement('h1');
     title.className = 'ms-title';
+    title.id = 'ms-title';
     title.textContent = 'You’ve been scrolling for a while. Still intentional?';
 
     const subtitle = document.createElement('p');
     subtitle.className = 'ms-subtitle';
-    subtitle.textContent = `${formatDuration(scrolledSeconds)} of continuous scrolling here.`;
+    subtitle.id = 'ms-subtitle';
+    subtitle.textContent = `${formatDuration(scrolledSeconds)} of continuous scrolling here. Esc snoozes.`;
 
     const actions = document.createElement('div');
     actions.className = 'ms-actions';
 
-    const buttons = [
+    const specs = [
+      { action: 'break', label: 'Take a break', className: 'ms-btn ms-btn-primary', primary: true },
       { action: 'continue', label: 'Continue', className: 'ms-btn ms-btn-ghost' },
-      { action: 'break', label: 'Take a break', className: 'ms-btn ms-btn-primary' },
       { action: 'snooze', label: 'Remind me later', className: 'ms-btn ms-btn-ghost' }
     ];
-    for (const spec of buttons) {
+    const buttons = specs.map((spec) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = spec.className;
       button.textContent = spec.label;
       button.addEventListener('click', () => handleAction(spec.action));
       actions.append(button);
-    }
+      return button;
+    });
 
     card.append(title, subtitle, actions);
     shadow.append(link, card);
+    trapFocus(card, buttons);
+    return buttons[0];
+  }
+
+  /** Keep Tab cycling inside the card while it is open. */
+  function trapFocus(card, buttons) {
+    card.addEventListener('keydown', (event) => {
+      if (event.key !== 'Tab') return;
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      const active = card.getRootNode().activeElement;
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
   }
 
   function showOverlay(scrolledSeconds) {
-    state.overlayOpen = true;
+    overlayOpen = true;
+    previouslyFocused = document.activeElement;
 
     overlayHost = document.createElement('div');
     overlayHost.id = 'mindful-scroll-overlay';
-    // Host styles live inline so the page's stylesheets can never override them.
+    // Host styles are inline so page stylesheets can never move or hide it.
     overlayHost.style.cssText =
       'all: initial; position: fixed; inset: auto 0 24px 0; z-index: 2147483647; display: flex; justify-content: center; pointer-events: none;';
     const shadow = overlayHost.attachShadow({ mode: 'open' });
-    buildOverlay(shadow, scrolledSeconds);
+    const primary = buildOverlay(shadow, scrolledSeconds);
     (document.body || document.documentElement).append(overlayHost);
+    primary.focus({ preventScroll: true });
 
+    detector.noteNudgeShown();
+    persistRuntime();
     send(MESSAGES.INTERRUPTION_SHOWN);
     overlayTimeout = setTimeout(() => handleAction('ignored'), OVERLAY_TIMEOUT_MS);
   }
@@ -232,29 +226,23 @@
     overlayTimeout = null;
     if (overlayHost) overlayHost.remove();
     overlayHost = null;
-    state.overlayOpen = false;
+    overlayOpen = false;
+    if (previouslyFocused && previouslyFocused.isConnected) {
+      previouslyFocused.focus({ preventScroll: true });
+    }
+    previouslyFocused = null;
   }
 
   async function handleAction(action) {
     hideOverlay();
-    resetAccumulator('overlay-action');
-
-    const cooldownMs = (Number(state.settings.cooldownSeconds) || 180) * 1000 * quietFactor();
-    const snoozeMs = (Number(state.settings.snoozeMinutes) || 5) * 60000;
-
-    if (action === 'break') {
-      startBreak();
-      state.quietUntil = Date.now() + BREAK_MS + cooldownMs;
-    } else if (action === 'snooze') {
-      state.quietUntil = Date.now() + snoozeMs;
-    } else {
-      // "continue" and auto-dismiss: short cooldown so we don't nag.
-      state.quietUntil = Date.now() + cooldownMs;
-    }
+    if (action === 'break') startBreak();
+    detector.applyAction(action);
+    flush(true);
+    persistRuntime();
 
     const response = await send(MESSAGES.INTERRUPTION_ACTION, { action });
     if (response && typeof response.ignoredToday === 'number') {
-      state.ignoredToday = response.ignoredToday;
+      detector.setIgnoredToday(response.ignoredToday);
     }
   }
 
@@ -262,17 +250,19 @@
 
   let breakHost = null;
   let breakTimer = null;
+  let blurStyle = null;
 
-  /** Blur the feed for a minute with a small "come back later" panel on top. */
-  function startBreak() {
+  /** Blur the feed for a while, with a countdown panel on top. */
+  function startBreak(endsAt = Date.now() + settings.breakSeconds * 1000) {
     if (breakHost) return;
-    document.documentElement.classList.add('mindful-scroll-blurred');
+    breakUntil = endsAt;
 
-    const style = document.createElement('style');
-    style.id = 'mindful-scroll-blur-style';
-    style.textContent =
-      'html.mindful-scroll-blurred body { filter: blur(10px) grayscale(0.4) !important; transition: filter 300ms ease; }';
-    document.documentElement.append(style);
+    blurStyle = document.createElement('style');
+    blurStyle.id = 'mindful-scroll-blur-style';
+    blurStyle.textContent =
+      'html.mindful-scroll-blurred body { filter: blur(10px) grayscale(0.4) !important; }';
+    document.documentElement.append(blurStyle);
+    document.documentElement.classList.add('mindful-scroll-blurred');
 
     breakHost = document.createElement('div');
     breakHost.style.cssText =
@@ -285,6 +275,8 @@
 
     const panel = document.createElement('div');
     panel.className = 'ms-break';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'Break in progress');
 
     const heading = document.createElement('h1');
     heading.className = 'ms-title';
@@ -292,6 +284,7 @@
 
     const countdown = document.createElement('p');
     countdown.className = 'ms-subtitle';
+    countdown.setAttribute('aria-live', 'polite');
 
     const end = document.createElement('button');
     end.type = 'button';
@@ -302,56 +295,89 @@
     panel.append(heading, countdown, end);
     shadow.append(link, panel);
     (document.body || document.documentElement).append(breakHost);
+    end.focus({ preventScroll: true });
 
-    const endsAt = Date.now() + BREAK_MS;
     const render = () => {
-      const remaining = Math.max(0, Math.round((endsAt - Date.now()) / 1000));
+      const remaining = Math.max(0, Math.round((breakUntil - Date.now()) / 1000));
       countdown.textContent = `Back in ${formatDuration(remaining)}.`;
       if (remaining <= 0) endBreak();
     };
     render();
     breakTimer = setInterval(render, 1000);
+    persistRuntime();
   }
 
+  /** Teardown must be idempotent: an orphaned blur would break the page. */
   function endBreak() {
     clearInterval(breakTimer);
     breakTimer = null;
     if (breakHost) breakHost.remove();
     breakHost = null;
     document.documentElement.classList.remove('mindful-scroll-blurred');
-    const style = document.getElementById('mindful-scroll-blur-style');
-    if (style) style.remove();
+    if (blurStyle) blurStyle.remove();
+    blurStyle = null;
+    breakUntil = 0;
+    persistRuntime();
   }
 
   /* ------------------------------------------------------------ lifecycle */
 
-  function start() {
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('wheel', onScroll, { passive: true });
-    window.addEventListener('touchmove', onScroll, { passive: true });
-
-    for (const type of ['click', 'keydown', 'submit']) {
-      window.addEventListener(type, onMeaningfulInteraction, true);
+  function attachListeners() {
+    // Scroll does not bubble, so capture is required to see inner containers
+    // (Reddit's shreddit app, Instagram's main, YouTube's Shorts pager).
+    document.addEventListener('scroll', onActivity, { capture: true, passive: true });
+    for (const type of ['wheel', 'touchmove']) {
+      window.addEventListener(type, onActivity, { passive: true, capture: true });
     }
+
+    window.addEventListener('keydown', onKeyDown, true);
+    for (const type of ['click', 'submit']) {
+      window.addEventListener(type, onInteraction, true);
+    }
+
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) resetAccumulator('hidden');
+      if (document.hidden) {
+        detector.registerInteraction();
+        flush(true);
+        persistRuntime();
+      }
     });
-    window.addEventListener('pagehide', () => flushScrollTime(true));
+    // Persist, but do not tear the break down: breakUntil must survive the
+    // reload so the page cannot be refreshed to escape it.
+    window.addEventListener('pagehide', () => {
+      flush(true);
+      persistRuntime();
+    });
 
-    state.tickTimer = setInterval(tick, TICK_MS);
-
-    // React to settings changes without needing a page reload.
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && changes[STORAGE_KEYS.settings]) {
-        state.settings = withDefaults(changes[STORAGE_KEYS.settings].newValue);
-        if (!siteEnabled()) {
-          hideOverlay();
-          endBreak();
-          resetAccumulator('disabled');
-        }
+      if (area !== 'local' || !changes[STORAGE_KEYS.settings]) return;
+      settings = withDefaults(changes[STORAGE_KEYS.settings].newValue);
+      detector.setSettings(settings);
+      if (!siteEnabled()) {
+        hideOverlay();
+        endBreak();
+        detector.registerInteraction();
       }
     });
   }
 
-  Promise.all([loadSettings(), loadIgnoredCount()]).then(start);
+  async function init() {
+    const context = await send(MESSAGES.GET_CONTEXT);
+    settings = withDefaults(context && context.settings);
+    const runtime = (context && context.runtime) || {};
+
+    detector = createDetector({
+      settings,
+      ignoredToday: (context && context.ignoredToday) || 0,
+      restored: runtime
+    });
+
+    // A reload during a break resumes the break rather than escaping it.
+    if (runtime.breakUntil && runtime.breakUntil > Date.now()) startBreak(runtime.breakUntil);
+
+    attachListeners();
+    setInterval(tick, TICK_MS);
+  }
+
+  init();
 })();
