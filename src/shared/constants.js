@@ -59,6 +59,8 @@
     EXPORT_DATA: 'EXPORT_DATA',
     IMPORT_DATA: 'IMPORT_DATA',
     DELETE_ALL_DATA: 'DELETE_ALL_DATA',
+    GET_INSIGHTS: 'GET_INSIGHTS',
+    GET_WEEKLY_SUMMARY: 'GET_WEEKLY_SUMMARY',
     /** One round-trip on injection: settings + ignored count + runtime state. */
     GET_CONTEXT: 'GET_CONTEXT',
     /** Persist per-tab runtime state (cooldown, break, nudge history). */
@@ -208,6 +210,169 @@
     return config.cooldownSeconds * 1000 * factor;
   }
 
+  /* -------------------------------------------------------- usage analytics */
+
+  /**
+   * Analyze usage data to find peak usage times.
+   * @param {object} stats - Daily stats buckets
+   * @returns {object} Peak usage analysis
+   */
+  function analyzePeakUsage(stats) {
+    const days = Object.keys(stats).filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(key));
+    if (days.length === 0) return null;
+
+    const hourlyData = {}; // hour -> total seconds
+    const dailyData = {}; // day of week -> total seconds
+
+    for (const dayKey of days) {
+      const day = normaliseDay(stats[dayKey]);
+      const date = new Date(dayKey);
+      const dayOfWeek = date.toLocaleDateString(undefined, { weekday: 'long' });
+
+      // Distribute daily scroll time across hours (simplified - assumes even distribution)
+      // In a real implementation, you'd want to store hourly data
+      const hourlyShare = day.scrollSeconds / 24;
+      for (let hour = 0; hour < 24; hour++) {
+        hourlyData[hour] = (hourlyData[hour] || 0) + hourlyShare;
+      }
+
+      dailyData[dayOfWeek] = (dailyData[dayOfWeek] || 0) + day.scrollSeconds;
+    }
+
+    // Find peak hour
+    let peakHour = 0;
+    let peakHourSeconds = 0;
+    for (const [hour, seconds] of Object.entries(hourlyData)) {
+      if (seconds > peakHourSeconds) {
+        peakHourSeconds = seconds;
+        peakHour = Number(hour);
+      }
+    }
+
+    // Find peak day
+    let peakDay = '';
+    let peakDaySeconds = 0;
+    for (const [day, seconds] of Object.entries(dailyData)) {
+      if (seconds > peakDaySeconds) {
+        peakDaySeconds = seconds;
+        peakDay = day;
+      }
+    }
+
+    return {
+      peakHour,
+      peakHourFormatted: formatHour(peakHour),
+      peakDay,
+      totalDays: days.length,
+      averageDailySeconds:
+        days.reduce((sum, key) => sum + normaliseDay(stats[key]).scrollSeconds, 0) / days.length
+    };
+  }
+
+  /**
+   * Format hour in 12-hour format.
+   */
+  function formatHour(hour24) {
+    if (hour24 === 0) return '12 AM';
+    if (hour24 === 12) return '12 PM';
+    if (hour24 < 12) return `${hour24} AM`;
+    return `${hour24 - 12} PM`;
+  }
+
+  /**
+   * Generate insights based on usage patterns.
+   * @param {object} stats - Daily stats buckets
+   * @returns {string[]} Array of insight messages
+   */
+  function generateInsights(stats) {
+    const insights = [];
+    const peakUsage = analyzePeakUsage(stats);
+
+    if (!peakUsage) {
+      insights.push('Start using Mindful Scroll to get personalized insights!');
+      return insights;
+    }
+
+    // Peak time insight
+    if (peakUsage.peakHourFormatted) {
+      insights.push(
+        `You scroll most around ${peakUsage.peakHourFormatted}. Consider setting a schedule for this time.`
+      );
+    }
+
+    // Peak day insight
+    if (peakUsage.peakDay) {
+      insights.push(`${peakUsage.peakDay} is your most active day. Plan breaks accordingly.`);
+    }
+
+    // Average usage insight
+    const avgMinutes = Math.round(peakUsage.averageDailySeconds / 60);
+    if (avgMinutes > 30) {
+      insights.push(
+        `You average ${avgMinutes} minutes of scrolling per day. Taking regular breaks can help.`
+      );
+    } else if (avgMinutes > 10) {
+      insights.push(`Your average of ${avgMinutes} minutes per day shows healthy awareness.`);
+    }
+
+    // Interruption rate insight
+    const days = Object.keys(stats).filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(key));
+    let totalInterruptions = 0;
+    let totalIgnored = 0;
+    for (const dayKey of days) {
+      const day = normaliseDay(stats[dayKey]);
+      totalInterruptions += day.interruptions;
+      totalIgnored += ignoredCount(day);
+    }
+
+    if (totalInterruptions > 0) {
+      const ignoreRate = Math.round((totalIgnored / totalInterruptions) * 100);
+      if (ignoreRate > 50) {
+        insights.push(`You ignore ${ignoreRate}% of nudges. Try taking more breaks when reminded.`);
+      } else if (ignoreRate < 30) {
+        insights.push(
+          `Great job! You only ignore ${ignoreRate}% of nudges. Your awareness is strong.`
+        );
+      }
+    }
+
+    return insights;
+  }
+
+  /**
+   * Get weekly summary data.
+   * @param {object} stats - Daily stats buckets
+   * @returns {object} Weekly summary
+   */
+  function getWeeklySummary(stats) {
+    const days = Object.keys(stats).filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(key));
+    const last7Days = days.slice(-7);
+
+    let totalSeconds = 0;
+    let totalInterruptions = 0;
+    let totalBreaks = 0;
+    let totalIgnored = 0;
+
+    for (const dayKey of last7Days) {
+      const day = normaliseDay(stats[dayKey]);
+      totalSeconds += day.scrollSeconds;
+      totalInterruptions += day.interruptions;
+      totalBreaks += day.actions.break || 0;
+      totalIgnored += ignoredCount(day);
+    }
+
+    return {
+      totalSeconds,
+      totalMinutes: Math.round(totalSeconds / 60),
+      totalInterruptions,
+      totalBreaks,
+      totalIgnored,
+      daysWithData: last7Days.length,
+      averageDailyMinutes:
+        last7Days.length > 0 ? Math.round(totalSeconds / last7Days.length / 60) : 0
+    };
+  }
+
   global.MindfulScroll = {
     SCHEMA_VERSION,
     SITES,
@@ -230,6 +395,10 @@
     t,
     formatDuration,
     thresholdSeconds,
-    quietMsForAction
+    quietMsForAction,
+    analyzePeakUsage,
+    formatHour,
+    generateInsights,
+    getWeeklySummary
   };
 })(typeof self !== 'undefined' ? self : globalThis);

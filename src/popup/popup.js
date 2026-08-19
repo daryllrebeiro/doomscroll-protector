@@ -9,6 +9,8 @@ const els = {
   ignored: document.getElementById('ignored'),
   summary: document.getElementById('summary'),
   trend: document.getElementById('trend'),
+  weeklySummary: document.getElementById('weeklySummary'),
+  insights: document.getElementById('insights'),
   siteList: document.getElementById('siteList'),
   openOptions: document.getElementById('openOptions')
 };
@@ -117,6 +119,49 @@ function renderError() {
   els.ignored.textContent = '–';
 }
 
+function renderWeeklySummary(summary) {
+  els.weeklySummary.replaceChildren();
+  if (!summary || summary.daysWithData === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'weekly-summary-item';
+    empty.textContent = 'No weekly data yet.';
+    els.weeklySummary.append(empty);
+    return;
+  }
+
+  const items = [
+    { label: 'Total time', value: formatDuration(summary.totalSeconds) },
+    { label: 'Daily average', value: `${summary.averageDailyMinutes} min` },
+    { label: 'Nudges', value: String(summary.totalInterruptions) },
+    { label: 'Breaks taken', value: String(summary.totalBreaks) }
+  ];
+
+  for (const item of items) {
+    const div = document.createElement('div');
+    div.className = 'weekly-summary-item';
+    div.innerHTML = `<span>${item.label}</span><span>${item.value}</span>`;
+    els.weeklySummary.append(div);
+  }
+}
+
+function renderInsights(insights) {
+  els.insights.replaceChildren();
+  if (!insights || insights.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'insight';
+    empty.textContent = 'Use Mindful Scroll more to get personalized insights.';
+    els.insights.append(empty);
+    return;
+  }
+
+  for (const insight of insights) {
+    const li = document.createElement('li');
+    li.className = 'insight';
+    li.textContent = insight;
+    els.insights.append(li);
+  }
+}
+
 async function render() {
   const response = await send(MESSAGES.GET_STATS);
   if (!response || !response.today) {
@@ -142,6 +187,20 @@ async function render() {
 
   renderTrend(stats || {});
   renderSites(today.perSite || {});
+
+  // Load weekly summary and insights
+  const [weeklyResponse, insightsResponse] = await Promise.all([
+    send(MESSAGES.GET_WEEKLY_SUMMARY),
+    send(MESSAGES.GET_INSIGHTS)
+  ]);
+
+  if (weeklyResponse && weeklyResponse.summary) {
+    renderWeeklySummary(weeklyResponse.summary);
+  }
+
+  if (insightsResponse && insightsResponse.insights) {
+    renderInsights(insightsResponse.insights);
+  }
 }
 
 els.enabled.addEventListener('change', async () => {

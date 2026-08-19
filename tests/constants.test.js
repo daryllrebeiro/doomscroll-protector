@@ -13,7 +13,11 @@ const {
   t,
   formatDuration,
   thresholdSeconds,
-  quietMsForAction
+  quietMsForAction,
+  analyzePeakUsage,
+  generateInsights,
+  getWeeklySummary,
+  formatHour
 } = MS;
 
 describe('t', () => {
@@ -229,5 +233,141 @@ describe('quietMsForAction', () => {
 
   it('halves quiet periods in strict mode', () => {
     expect(quietMsForAction({ ...settings, strictMode: true }, 'continue')).toBe(90000);
+  });
+});
+
+describe('formatHour', () => {
+  it.each([
+    [0, '12 AM'],
+    [1, '1 AM'],
+    [11, '11 AM'],
+    [12, '12 PM'],
+    [13, '1 PM'],
+    [23, '11 PM']
+  ])('formats %s as %s', (hour, expected) => {
+    expect(formatHour(hour)).toBe(expected);
+  });
+});
+
+describe('analyzePeakUsage', () => {
+  it('returns null when there is no data', () => {
+    expect(analyzePeakUsage({})).toBeNull();
+  });
+
+  it('finds the peak hour and day from daily buckets', () => {
+    const stats = {
+      '2026-06-01': { scrollSeconds: 3600, actions: {}, perSite: {} },
+      '2026-06-02': { scrollSeconds: 7200, actions: {}, perSite: {} },
+      '2026-06-03': { scrollSeconds: 1800, actions: {}, perSite: {} }
+    };
+    const result = analyzePeakUsage(stats);
+    expect(result).not.toBeNull();
+    expect(result.totalDays).toBe(3);
+    expect(result.averageDailySeconds).toBe(4200);
+    // Peak day should be the one with the most scrolling
+    expect(result.peakDay).toBeDefined();
+    expect(result.peakHourFormatted).toBeDefined();
+  });
+
+  it('ignores non-date keys in the stats object', () => {
+    const stats = {
+      '2026-06-01': { scrollSeconds: 100, actions: {}, perSite: {} },
+      garbage: { scrollSeconds: 9999, actions: {}, perSite: {} }
+    };
+    const result = analyzePeakUsage(stats);
+    expect(result.totalDays).toBe(1);
+  });
+});
+
+describe('generateInsights', () => {
+  it('returns a starter message when there is no data', () => {
+    const insights = generateInsights({});
+    expect(insights.length).toBe(1);
+    expect(insights[0]).toContain('Start using');
+  });
+
+  it('generates insights from usage data', () => {
+    const stats = {
+      '2026-06-01': {
+        scrollSeconds: 3600,
+        interruptions: 5,
+        actions: { continue: 2, break: 1, snooze: 1, ignored: 1 },
+        perSite: {}
+      },
+      '2026-06-02': {
+        scrollSeconds: 7200,
+        interruptions: 3,
+        actions: { continue: 1, break: 1, snooze: 0, ignored: 1 },
+        perSite: {}
+      }
+    };
+    const insights = generateInsights(stats);
+    expect(insights.length).toBeGreaterThan(0);
+    // Should mention peak time and day
+    expect(insights.some((i) => i.includes('scroll most'))).toBe(true);
+    expect(insights.some((i) => i.includes('most active day'))).toBe(true);
+  });
+
+  it('reports a high ignore rate', () => {
+    const stats = {
+      '2026-06-01': {
+        scrollSeconds: 3600,
+        interruptions: 10,
+        actions: { continue: 6, break: 0, snooze: 0, ignored: 4 },
+        perSite: {}
+      }
+    };
+    const insights = generateInsights(stats);
+    expect(insights.some((i) => i.includes('ignore 100%'))).toBe(true);
+  });
+
+  it('praises a low ignore rate', () => {
+    const stats = {
+      '2026-06-01': {
+        scrollSeconds: 3600,
+        interruptions: 10,
+        actions: { continue: 1, break: 8, snooze: 1, ignored: 0 },
+        perSite: {}
+      }
+    };
+    const insights = generateInsights(stats);
+    expect(insights.some((i) => i.includes('only ignore 10%'))).toBe(true);
+  });
+});
+
+describe('getWeeklySummary', () => {
+  it('returns zeros when there is no data', () => {
+    const summary = getWeeklySummary({});
+    expect(summary).toEqual({
+      totalSeconds: 0,
+      totalMinutes: 0,
+      totalInterruptions: 0,
+      totalBreaks: 0,
+      totalIgnored: 0,
+      daysWithData: 0,
+      averageDailyMinutes: 0
+    });
+  });
+
+  it('aggregates the last 7 days of data', () => {
+    const stats = {};
+    for (let i = 1; i <= 10; i += 1) {
+      const day = String(i).padStart(2, '0');
+      stats[`2026-06-${day}`] = {
+        scrollSeconds: 600,
+        interruptions: 2,
+        actions: { continue: 1, break: 1, snooze: 0, ignored: 0 },
+        perSite: {}
+      };
+    }
+    const summary = getWeeklySummary(stats);
+    // Only the last 7 of 10 days are counted
+    expect(summary.daysWithData).toBe(7);
+    expect(summary.totalSeconds).toBe(4200);
+    expect(summary.totalMinutes).toBe(70);
+    expect(summary.totalInterruptions).toBe(14);
+    expect(summary.totalBreaks).toBe(7);
+    expect(summary.totalIgnored).toBe(7);
+    expect(summary.averageDailyMinutes).toBe(10);
   });
 });

@@ -115,6 +115,43 @@
   color: #2e7d32;
 }
 
+.weekly-summary {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.weekly-summary-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.weekly-summary-item:last-child {
+  margin-bottom: 0;
+}
+
+.insights {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.insight {
+  font-size: 11px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface);
+  border-left: 3px solid var(--accent);
+  line-height: 1.4;
+}
+
 .site-list {
   list-style: none;
   margin: 0;

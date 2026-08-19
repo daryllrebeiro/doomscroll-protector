@@ -23,7 +23,9 @@ const {
   normaliseDay,
   ignoredCount,
   migrations,
-  siteIdForHost
+  siteIdForHost,
+  generateInsights,
+  getWeeklySummary
 } = self.MindfulScroll;
 
 /** Commit buffered stats at most once a minute (alarms cannot fire faster). */
@@ -218,6 +220,18 @@ const handlers = {
     const stats = await statsWithBuffer();
     const today = normaliseDay(stats[dateKey()]);
     return { today, stats, settings: await getSettings(), ignoredToday: ignoredCount(today) };
+  },
+
+  async [MESSAGES.GET_INSIGHTS]() {
+    const stats = await statsWithBuffer();
+    const insights = generateInsights(stats);
+    return { insights };
+  },
+
+  async [MESSAGES.GET_WEEKLY_SUMMARY]() {
+    const stats = await statsWithBuffer();
+    const summary = getWeeklySummary(stats);
+    return { summary };
   },
 
   /** Everything a freshly injected content script needs, in one round-trip. */
