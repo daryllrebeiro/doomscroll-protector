@@ -10,6 +10,29 @@ dismissible nudge. It is a nudging system, not a blocker: nothing is ever hard-b
 2. Enable **Developer mode**
 3. **Load unpacked** → select this repository folder
 
+## Features
+
+### Core Functionality
+
+- **Smart Detection**: Measures active scrolling and distinguishes intentional reading from doomscrolling
+- **Gentle Nudges**: Non-blocking reminders with three choices (Continue, Take a break, Remind me later)
+- **Multi-Site Support**: Works on Twitter/X, Reddit, YouTube (including Shorts), and Instagram
+- **Break Mode**: Blurs the feed for a customizable duration when you need a pause
+- **Adaptive Threshold**: Learns from your behavior and adjusts timing accordingly
+
+### Enhanced Features (v1.2.0)
+
+- **Keyboard Shortcuts**:
+  - `Ctrl+Shift+M` (Mac: `Cmd+Shift+M`) - Toggle extension on/off
+  - `Ctrl+Shift+S` (Mac: `Cmd+Shift+S`) - Open settings
+  - `Ctrl+Shift+Z` (Mac: `Cmd+Shift+Z`) - Quick snooze for 5 minutes
+- **Smart Insights**: Personalized usage pattern analysis and recommendations
+- **Weekly Summary**: 7-day usage overview with daily averages
+- **Enhanced Statistics**: Color-coded usage bars and trend indicators
+- **Time-Based Scheduling**: Auto-enable during specific hours (e.g., evening hours)
+- **Import/Export Settings**: Backup and restore your configuration
+- **Privacy-First**: Zero data collection, all storage is local to your device
+
 ## How the detection works
 
 The content script measures _active_ scrolling: an activity event only records a timestamp,
@@ -107,8 +130,33 @@ the privacy policy is [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ```bash
 npm install
-npm run verify   # lint + format check + manifest check + unit tests
+npm run verify   # lint + format check + manifest check + typecheck + unit tests
+npm run test     # run unit tests only
 npm run package  # dist/mindful-scroll-<version>.zip for the Web Store
 ```
+
+## Testing
+
+The extension includes comprehensive unit tests (83 tests) covering:
+
+- Core detection logic and state machine
+- Settings validation and defaults
+- Storage migrations
+- Usage analytics and insights generation
+
+Run tests with: `npm run test`
+
+## Publishing to Chrome Web Store
+
+For detailed instructions on building and publishing to the Chrome Web Store, see [HOW_TO_PUBLISH.md](HOW_TO_PUBLISH.md).
+
+Quick summary:
+
+```bash
+npm run verify   # Ensure all checks pass
+npm run package  # Build store zip
+```
+
+## Release Process
 
 Releasing is tag-driven — see [docs/RELEASE.md](docs/RELEASE.md).
