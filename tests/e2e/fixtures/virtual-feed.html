@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Virtual feed fixture — mimics YouTube Shorts / Instagram Reels</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        font-family: sans-serif;
+      }
+      #shorts {
+        height: 100%;
+        overflow: hidden;
+      }
+      .slide {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        background: #111;
+        color: #fff;
+        opacity: 0;
+      }
+      .slide.active {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="shorts">
+      <div class="slide active">Short 1 — use arrows / space to advance</div>
+      <div class="slide">Short 2</div>
+      <div class="slide">Short 3</div>
+      <div class="slide">Short 4</div>
+      <div class="slide">Short 5</div>
+    </div>
+    <script>
+      // Advance on ArrowDown/space, mimicking YouTube Shorts' pager behaviour.
+      let current = 0;
+      const slides = Array.from(document.querySelectorAll('.slide'));
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown' || event.key === ' ' || event.key === 'j') {
+          event.preventDefault();
+          slides[current].classList.remove('active');
+          current = (current + 1) % slides.length;
+          slides[current].classList.add('active');
+        }
+      });
+    </script>
+  </body>
+</html>

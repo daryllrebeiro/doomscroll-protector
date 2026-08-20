@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Window scroll fixture — mimics Twitter/X</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: sans-serif;
+      }
+      .feed {
+        padding: 16px;
+      }
+      .item {
+        height: 400px;
+        margin-bottom: 16px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        background: #f9f9f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Window Scroll Feed</h1>
+      <div class="feed" id="feed">
+        <div class="item">Post 1 — keep scrolling</div>
+        <div class="item">Post 2</div>
+        <div class="item">Post 3</div>
+        <div class="item">Post 4</div>
+        <div class="item">Post 5</div>
+        <div class="item">Post 6</div>
+        <div class="item">Post 7</div>
+        <div class="item">Post 8</div>
+        <div class="item">Post 9</div>
+        <div class="item">Post 10</div>
+      </div>
+      <input type="text" placeholder="Compose a tweet" id="composer" />
+    </main>
+  </body>
+</html>

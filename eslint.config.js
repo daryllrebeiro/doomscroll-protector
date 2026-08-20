@@ -34,11 +34,11 @@ export default [
     }
   },
   {
-    files: ['tools/**/*.mjs', 'tests/**/*.js', 'eslint.config.js'],
+    files: ['tools/**/*.mjs', 'tests/**/*.js', 'playwright.config.mjs', 'eslint.config.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
-      globals: { ...globals.node, ...globals.browser }
+      globals: { ...globals.node, ...globals.browser, ...globals.webextensions }
     }
   }
 ];
